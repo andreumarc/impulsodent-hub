@@ -12,6 +12,7 @@ export const HUB_ROLES: RoleDef[] = [
   { value: 'gerencia',   label: 'Gerencia',      color: '#0369a1', bg: '#e0f2fe' },
   { value: 'rrhh',       label: 'RRHH',          color: '#b45309', bg: '#fef3c7' },
   { value: 'empleado',   label: 'Empleado',      color: '#374151', bg: '#f3f4f6' },
+  { value: 'demo',       label: 'Demo',          color: '#6b7280', bg: '#f3f4f6' },
 ]
 
 export const APP_ROLES: RoleDef[] = [

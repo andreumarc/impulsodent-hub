@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { hashSync } from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -23,6 +24,19 @@ async function main() {
     })
   }
   console.log(`Seeded ${APPS.length} app registrations.`)
+
+  await prisma.hubUser.upsert({
+    where:  { email: 'demo@impulsodent.com' },
+    update: {},
+    create: {
+      email:         'demo@impulsodent.com',
+      password_hash: hashSync('Demo2026!', 12),
+      name:          'Demo ImpulsoDent',
+      role:          'demo',
+      active:        true,
+    },
+  })
+  console.log('Seeded demo user.')
 }
 
 main()
