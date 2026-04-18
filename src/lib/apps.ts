@@ -121,9 +121,8 @@ export const APPS: AppDef[] = [
     color: '#0891b2',
     bgColor: '#cffafe',
     url: process.env.NEXT_PUBLIC_URL_DENTALREPORTS || '#',
-    status: 'beta',
+    status: 'active',
     category: 'Financiero',
-    badge: 'Beta',
   },
 ]
 

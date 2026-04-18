@@ -6,10 +6,13 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, Trash2, Save, RefreshCw, User, ToggleLeft, ToggleRight } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
-interface Company { id: string; name: string; slug: string; email: string; phone: string; address: string; active: boolean }
+interface Company { id: string; name: string; slug: string; cif: string; city: string; email: string; phone: string; address: string; active: boolean }
 interface HubUser { id: string; name: string; email: string; role: string; active: boolean }
 
-const ROLE_LABELS: Record<string, string> = { superadmin: 'Superadmin', admin: 'Administrador', user: 'Usuario' }
+const ROLE_LABELS: Record<string, string> = {
+  superadmin: 'Superadmin', admin: 'Administrador', direccion: 'Dirección',
+  gerencia: 'Gerencia', rrhh: 'RRHH', empleado: 'Empleado',
+}
 
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -127,12 +130,20 @@ export default function CompanyDetailPage() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5">
         <h3 className="text-sm font-semibold text-gray-800 mb-4">Datos de la empresa</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {(['name','slug','email','phone','address'] as const).map((field) => (
-            <div key={field} className={`space-y-1.5 ${field === 'address' ? 'sm:col-span-2' : ''}`}>
-              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">{field}</label>
+          {([
+            { key: 'name',    label: 'Nombre' },
+            { key: 'slug',    label: 'Slug' },
+            { key: 'cif',     label: 'CIF / NIF' },
+            { key: 'city',    label: 'Ciudad' },
+            { key: 'email',   label: 'Email' },
+            { key: 'phone',   label: 'Teléfono' },
+            { key: 'address', label: 'Dirección', full: true },
+          ] as { key: keyof Company; label: string; full?: boolean }[]).map(({ key, label, full }) => (
+            <div key={key} className={`space-y-1.5 ${full ? 'sm:col-span-2' : ''}`}>
+              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</label>
               <input
-                value={(form[field] as string) ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+                value={(form[key] as string) ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
               />
             </div>
@@ -215,8 +226,7 @@ export default function CompanyDetailPage() {
                 placeholder="Contraseña" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400" />
               <select value={newUser.role} onChange={(e) => setNewUser((u) => ({ ...u, role: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
-                <option value="admin">Administrador</option>
-                <option value="user">Usuario</option>
+                {Object.entries(ROLE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </div>
             <div className="flex gap-2">

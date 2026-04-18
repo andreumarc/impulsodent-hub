@@ -118,7 +118,7 @@ export async function getCompany(id: string): Promise<Company | null> {
 }
 
 export async function createCompany(input: {
-  name: string; slug: string; email?: string; phone?: string; address?: string
+  name: string; slug: string; cif?: string; city?: string; email?: string; phone?: string; address?: string
 }): Promise<Company> {
   const row = await prisma.company.create({ data: { ...input, active: true } })
   return serializeCompany(row)
