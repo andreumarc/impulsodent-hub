@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { listCompanies, createCompany } from '@/lib/db'
+import { listCompaniesWithStats, createCompany } from '@/lib/db'
 
 async function requireSuperadmin() {
   const session = await getSession()
@@ -10,7 +10,7 @@ async function requireSuperadmin() {
 
 export async function GET() {
   if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  const companies = await listCompanies()
+  const companies = await listCompaniesWithStats()
   return NextResponse.json(companies)
 }
 

@@ -73,7 +73,7 @@ insert into app_registrations (app_id, name, sync_enabled) values
   ('clinicvox',     'ClinicVox',     false),
   ('dentalspot',    'DentalSpot',    false),
   ('dentalhr',      'DentalHR',      false),
-  ('fichaje',       'FichajeSaaS',   false),
+  ('fichaje',       'Fichajeshr',    false),
   ('spendflow',     'SpendFlow',     false),
   ('zentrix',       'ZENTRIX',       false),
   ('nexuserp',      'NexusERP',      false),

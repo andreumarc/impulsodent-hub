@@ -60,7 +60,7 @@ export const APPS: AppDef[] = [
   },
   {
     id: 'fichaje',
-    name: 'FichajeSaaS',
+    name: 'Fichajeshr',
     description: 'Control horario con geolocalización, kiosko y app móvil.',
     icon: 'Clock',
     color: '#16a34a',

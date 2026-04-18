@@ -6,6 +6,8 @@ export interface Company {
   id: string
   name: string
   slug: string
+  cif: string | null
+  city: string | null
   email: string | null
   phone: string | null
   address: string | null
@@ -55,10 +57,17 @@ export interface SyncLog {
 }
 
 function serializeCompany(c: {
-  id: string; name: string; slug: string; email: string | null; phone: string | null
-  address: string | null; active: boolean; created_at: Date; updated_at: Date
+  id: string; name: string; slug: string; cif?: string | null; city?: string | null
+  email: string | null; phone: string | null; address: string | null
+  active: boolean; created_at: Date; updated_at: Date
 }): Company {
-  return { ...c, created_at: c.created_at.toISOString(), updated_at: c.updated_at.toISOString() }
+  return {
+    ...c,
+    cif: c.cif ?? null,
+    city: c.city ?? null,
+    created_at: c.created_at.toISOString(),
+    updated_at: c.updated_at.toISOString(),
+  }
 }
 
 function serializeUser(u: {
@@ -86,6 +95,21 @@ function serializeReg(r: {
 export async function listCompanies(): Promise<Company[]> {
   const rows = await prisma.company.findMany({ orderBy: { name: 'asc' } })
   return rows.map(serializeCompany)
+}
+
+export async function listCompaniesWithStats() {
+  const rows = await prisma.company.findMany({
+    orderBy: { name: 'asc' },
+    include: {
+      appAccess: { select: { app_id: true } },
+      _count: { select: { users: true } },
+    },
+  })
+  return rows.map((c) => ({
+    ...serializeCompany(c),
+    appIds: c.appAccess.map((a) => a.app_id),
+    userCount: c._count.users,
+  }))
 }
 
 export async function getCompany(id: string): Promise<Company | null> {

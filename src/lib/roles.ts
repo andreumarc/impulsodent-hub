@@ -6,9 +6,12 @@ export interface RoleDef {
 }
 
 export const HUB_ROLES: RoleDef[] = [
-  { value: 'superadmin', label: 'Superadmin',     color: '#7c3aed', bg: '#ede9fe' },
-  { value: 'admin',      label: 'Administrador',  color: '#1d4ed8', bg: '#dbeafe' },
-  { value: 'user',       label: 'Usuario',        color: '#374151', bg: '#f3f4f6' },
+  { value: 'superadmin', label: 'Superadmin',    color: '#7c3aed', bg: '#ede9fe' },
+  { value: 'admin',      label: 'Administrador', color: '#1d4ed8', bg: '#dbeafe' },
+  { value: 'direccion',  label: 'Dirección',     color: '#0f766e', bg: '#ccfbf1' },
+  { value: 'gerencia',   label: 'Gerencia',      color: '#0369a1', bg: '#e0f2fe' },
+  { value: 'rrhh',       label: 'RRHH',          color: '#b45309', bg: '#fef3c7' },
+  { value: 'empleado',   label: 'Empleado',      color: '#374151', bg: '#f3f4f6' },
 ]
 
 export const APP_ROLES: RoleDef[] = [
