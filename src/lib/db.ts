@@ -206,6 +206,24 @@ export async function getAdminStats() {
   return { companies, users, appAccess }
 }
 
+// ─── User App Roles ───────────────────────────────────────────────────────────
+
+export interface UserAppRole {
+  user_id: string
+  app_id: string
+  role: string
+}
+
+export async function getUserAppRoles(userId: string): Promise<UserAppRole[]> {
+  return prisma.userAppRole.findMany({ where: { user_id: userId } })
+}
+
+export async function setUserAppRoles(userId: string, roles: { app_id: string; role: string }[]): Promise<void> {
+  await prisma.userAppRole.deleteMany({ where: { user_id: userId } })
+  if (roles.length === 0) return
+  await prisma.userAppRole.createMany({ data: roles.map((r) => ({ user_id: userId, ...r })) })
+}
+
 // ─── Sync Logs ────────────────────────────────────────────────────────────────
 
 export async function createSyncLog(input: {

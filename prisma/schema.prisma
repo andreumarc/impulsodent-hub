@@ -37,7 +37,8 @@ model HubUser {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  company Company? @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  company  Company?      @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  appRoles UserAppRole[]
 
   @@map("hub_users")
 }
@@ -63,6 +64,18 @@ model AppRegistration {
   last_sync_at DateTime?
 
   @@map("app_registrations")
+}
+
+model UserAppRole {
+  user_id    String
+  app_id     String
+  role       String
+  created_at DateTime @default(now())
+
+  user HubUser @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, app_id])
+  @@map("user_app_roles")
 }
 
 model SyncLog {

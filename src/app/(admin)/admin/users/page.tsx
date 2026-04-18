@@ -50,17 +50,20 @@ export default async function UsersPage() {
                 <th className="text-left text-xs text-gray-400 font-semibold px-5 py-3">Rol</th>
                 <th className="text-left text-xs text-gray-400 font-semibold px-5 py-3 hidden lg:table-cell">Empresa</th>
                 <th className="text-left text-xs text-gray-400 font-semibold px-5 py-3">Estado</th>
+                <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50/60 transition-colors">
+                <tr key={u.id} className="hover:bg-gray-50/60 transition-colors group">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0" style={{ background: '#0d9488' }}>
                         {u.name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()}
                       </div>
-                      <span className="text-sm font-medium text-gray-900">{u.name}</span>
+                      <Link href={`/admin/users/${u.id}`} className="text-sm font-medium text-gray-900 hover:text-brand-600 hover:underline">
+                        {u.name}
+                      </Link>
                     </div>
                   </td>
                   <td className="px-5 py-3 hidden md:table-cell">
@@ -82,6 +85,12 @@ export default async function UsersPage() {
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${u.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
                       {u.active ? 'Activo' : 'Inactivo'}
                     </span>
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <Link href={`/admin/users/${u.id}`}
+                      className="text-xs text-gray-400 hover:text-brand-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                      Editar
+                    </Link>
                   </td>
                 </tr>
               ))}

@@ -103,6 +103,17 @@ export const APPS: AppDef[] = [
     category: 'ERP',
   },
   {
+    id: 'clinicrefunds',
+    name: 'ClinicRefunds',
+    description: 'Gestión de devoluciones y reembolsos para pacientes dentales.',
+    icon: 'RefreshCcw',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS || '#',
+    status: 'active',
+    category: 'Financiero',
+  },
+  {
     id: 'dentalreports',
     name: 'DentalReports',
     description: 'Informes avanzados, comparativas y analítica para clínicas.',
