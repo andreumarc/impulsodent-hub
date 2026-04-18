@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 2. Check Supabase DB users (if not matched by env-var)
-  if (!sessionUser && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  // 2. Check DB users via Neon/Prisma (if not matched by env-var)
+  if (!sessionUser && process.env.DATABASE_URL) {
     try {
       const dbUser = await getUserByEmail(email)
       if (dbUser && dbUser.active) {
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch {
-      // Supabase not configured yet — skip DB check
+      // DB not configured yet — skip DB check
     }
   }
 
