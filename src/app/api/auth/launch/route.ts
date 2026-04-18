@@ -13,6 +13,21 @@ const APP_URLS: Record<string, string | undefined> = {
   nexuserp:      process.env.NEXT_PUBLIC_URL_NEXUSERP,
   dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
   dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
+  clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
+}
+
+// Path where each app's SSO receiver lives
+const APP_SSO_PATHS: Record<string, string> = {
+  clinicpnl:     '/api/auth/hub-sso',
+  clinicvox:     '/sso',
+  dentalspot:    '/sso',
+  spendflow:     '/sso',
+  fichaje:       '/sso',
+  zentrix:       '/sso',
+  nexuserp:      '/sso',
+  dentalhr:      '/api/auth/hub-sso',
+  dentalreports: '/api/auth/hub-sso',
+  clinicrefunds: '/sso',
 }
 
 export async function GET(req: NextRequest) {
@@ -53,8 +68,9 @@ export async function GET(req: NextRequest) {
     .setIssuer('impulsodent-hub')
     .sign(secret)
 
-  // Redirect to app with token as query param
-  const target = new URL(appUrl)
+  // Redirect to app's SSO receiver with token
+  const ssoPath = APP_SSO_PATHS[appId] ?? '/sso'
+  const target = new URL(ssoPath, appUrl)
   target.searchParams.set('hub_token', token)
   return NextResponse.redirect(target)
 }
