@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Company {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  email      String?
+  phone      String?
+  address    String?
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  users      HubUser[]
+  appAccess  CompanyAppAccess[]
+  syncLogs   SyncLog[]
+
+  @@map("companies")
+}
+
+model HubUser {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  name          String
+  role          String   @default("admin")
+  company_id    String?
+  active        Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  company Company? @relation(fields: [company_id], references: [id], onDelete: SetNull)
+
+  @@map("hub_users")
+}
+
+model CompanyAppAccess {
+  company_id String
+  app_id     String
+  granted_at DateTime @default(now())
+
+  company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@id([company_id, app_id])
+  @@map("company_app_access")
+}
+
+model AppRegistration {
+  id           String    @id @default(cuid())
+  app_id       String    @unique
+  name         String
+  sync_url     String?
+  api_secret   String?
+  sync_enabled Boolean   @default(false)
+  last_sync_at DateTime?
+
+  @@map("app_registrations")
+}
+
+model SyncLog {
+  id             String   @id @default(cuid())
+  app_id         String
+  company_id     String?
+  event          String
+  status         String
+  response_code  Int?
+  error_message  String?
+  created_at     DateTime @default(now())
+
+  company Company? @relation(fields: [company_id], references: [id], onDelete: SetNull)
+
+  @@map("sync_logs")
+}
