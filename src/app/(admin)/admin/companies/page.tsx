@@ -2,13 +2,22 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Pencil, Power, Trash2, LayoutGrid, Building2, ChevronDown } from 'lucide-react'
+import { Plus, Search, Pencil, Power, Trash2, LayoutGrid, Building2, ChevronDown, Calendar } from 'lucide-react'
 import { APPS } from '@/lib/apps'
+
+const PLAN_LABELS: Record<string, string> = { free: 'Free', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise' }
+const PLAN_COLORS: Record<string, string> = {
+  free: 'bg-gray-100 text-gray-500',
+  starter: 'bg-blue-50 text-blue-600',
+  pro: 'bg-purple-50 text-purple-600',
+  enterprise: 'bg-amber-50 text-amber-600',
+}
 
 interface CompanyWithStats {
   id: string; name: string; slug: string; cif: string | null; city: string | null
   email: string | null; phone: string | null; active: boolean; created_at: string
   appIds: string[]; userCount: number
+  subscription_plan: string; subscription_expires_at: string | null
 }
 
 function getInitials(name: string): string {
@@ -146,9 +155,27 @@ export default function CompaniesPage() {
                   <p className="text-sm text-gray-400">
                     {[c.cif, c.city].filter(Boolean).join(' · ') || <span className="italic">Sin CIF ni ciudad</span>}
                   </p>
-                  <p className="text-xs text-gray-400 mt-2">
-                    Alta <span className="font-semibold text-gray-600">{formatDate(c.created_at)}</span>
-                  </p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${PLAN_COLORS[c.subscription_plan] ?? PLAN_COLORS.free}`}>
+                      {PLAN_LABELS[c.subscription_plan] ?? c.subscription_plan}
+                    </span>
+                    {c.subscription_expires_at ? (() => {
+                      const exp = new Date(c.subscription_expires_at)
+                      const daysLeft = Math.ceil((exp.getTime() - Date.now()) / 86400000)
+                      const expired = daysLeft < 0
+                      const soon = !expired && daysLeft <= 30
+                      return (
+                        <span className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                          expired ? 'bg-red-50 text-red-600' : soon ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-500'
+                        }`}>
+                          <Calendar className="w-3 h-3" />
+                          {expired ? `Caducó ${formatDate(c.subscription_expires_at)}` : `Vence ${formatDate(c.subscription_expires_at)}`}
+                        </span>
+                      )
+                    })() : (
+                      <span className="text-[11px] text-gray-400 italic">Sin caducidad</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Actions */}

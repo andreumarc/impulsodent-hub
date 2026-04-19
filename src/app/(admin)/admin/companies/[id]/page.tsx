@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, Trash2, Save, RefreshCw, User, ToggleLeft, ToggleRight } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
-interface Company { id: string; name: string; slug: string; cif: string; city: string; email: string; phone: string; address: string; active: boolean }
+interface Company { id: string; name: string; slug: string; cif: string; city: string; email: string; phone: string; address: string; active: boolean; subscription_plan: string; subscription_expires_at: string | null; max_clinics: number; max_users: number }
 interface HubUser { id: string; name: string; email: string; role: string; active: boolean }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -149,6 +149,45 @@ export default function CompanyDetailPage() {
             </div>
           ))}
         </div>
+        {/* Subscription */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Suscripción</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Plan</label>
+              <select value={(form.subscription_plan as string) ?? 'free'}
+                onChange={(e) => setForm((f) => ({ ...f, subscription_plan: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent bg-white">
+                <option value="free">Free</option>
+                <option value="starter">Starter</option>
+                <option value="pro">Pro</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Fecha de caducidad</label>
+              <input type="date"
+                value={form.subscription_expires_at ? String(form.subscription_expires_at).slice(0, 10) : ''}
+                onChange={(e) => setForm((f) => ({ ...f, subscription_expires_at: e.target.value || null }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Máx. clínicas</label>
+              <input type="number" min={1}
+                value={(form.max_clinics as number) ?? 5}
+                onChange={(e) => setForm((f) => ({ ...f, max_clinics: Number(e.target.value) }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Máx. usuarios</label>
+              <input type="number" min={1}
+                value={(form.max_users as number) ?? 20}
+                onChange={(e) => setForm((f) => ({ ...f, max_users: Number(e.target.value) }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent" />
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
           <label className="flex items-center gap-2 cursor-pointer">
             <button type="button" onClick={() => setForm((f) => ({ ...f, active: !f.active }))}>

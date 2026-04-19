@@ -7,7 +7,10 @@ import { ArrowLeft } from 'lucide-react'
 
 export default function NewCompanyPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ name: '', slug: '', cif: '', city: '', email: '', phone: '', address: '' })
+  const [form, setForm] = useState({
+    name: '', slug: '', cif: '', city: '', email: '', phone: '', address: '',
+    subscription_plan: 'free', subscription_expires_at: '', max_clinics: 5, max_users: 20,
+  })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -101,6 +104,42 @@ export default function NewCompanyPage() {
               placeholder="Calle Ejemplo, 1 — 28001 Madrid"
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent" />
           </div>
+
+          {/* Subscription */}
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Suscripción</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Plan</label>
+                <select value={form.subscription_plan} onChange={(e) => setForm((f) => ({ ...f, subscription_plan: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent bg-white">
+                  <option value="free">Free</option>
+                  <option value="starter">Starter</option>
+                  <option value="pro">Pro</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Fecha de caducidad</label>
+                <input type="date" value={form.subscription_expires_at}
+                  onChange={(e) => setForm((f) => ({ ...f, subscription_expires_at: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Máx. clínicas</label>
+                <input type="number" min={1} value={form.max_clinics}
+                  onChange={(e) => setForm((f) => ({ ...f, max_clinics: Number(e.target.value) }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Máx. usuarios</label>
+                <input type="number" min={1} value={form.max_users}
+                  onChange={(e) => setForm((f) => ({ ...f, max_users: Number(e.target.value) }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent" />
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
