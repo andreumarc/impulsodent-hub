@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { getSession } from '@/lib/auth'
-import { listUsers, createUser, getUserByEmail, setUserAppRoles } from '@/lib/db'
+import { listUsers, createUser, getUserByEmail, setUserAppRoles, setUserClinicAccess, setUserClinicAccessAll } from '@/lib/db'
 import { getInitials } from '@/lib/utils'
 import { pushUserToApps } from '@/lib/sync'
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { email, password, name, role, company_id, app_roles, subscription_plan, subscription_expires_at, max_clinics } = body
+  const { email, password, name, role, company_id, app_roles, subscription_plan, subscription_expires_at, max_clinics, clinic_access_all, clinic_ids } = body
 
   if (!email || !password || !name || !role) {
     return NextResponse.json({ error: 'email, password, name y role son obligatorios' }, { status: 400 })
@@ -43,7 +43,19 @@ export async function POST(req: NextRequest) {
     subscription_plan: subscription_plan ?? 'free',
     subscription_expires_at: subscription_expires_at || null,
     max_clinics: max_clinics ?? 5,
+    clinic_access_all: clinic_access_all !== false,
   })
+
+  // Set clinic access
+  const accessAll = clinic_access_all !== false
+  await setUserClinicAccessAll(user.id, accessAll)
+  if (!accessAll && Array.isArray(clinic_ids) && clinic_ids.length > 0) {
+    await setUserClinicAccess(user.id, clinic_ids)
+  }
+
+  if (Array.isArray(app_roles) && app_roles.length > 0) {
+    await setUserAppRoles(user.id, app_roles.filter((r: { app_id: string; role: string }) => r.role))
+  }
 
   // fire-and-forget sync to all apps
   pushUserToApps({
@@ -56,10 +68,6 @@ export async function POST(req: NextRequest) {
     subscription_expires_at: user.subscription_expires_at,
     max_clinics: user.max_clinics,
   }).catch(() => {})
-
-  if (Array.isArray(app_roles) && app_roles.length > 0) {
-    await setUserAppRoles(user.id, app_roles.filter((r: { app_id: string; role: string }) => r.role))
-  }
 
   return NextResponse.json(
     { ...user, password_hash: undefined, initials: getInitials(user.name) },

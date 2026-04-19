@@ -1,6 +1,31 @@
 import { SignJWT } from 'jose'
 import { prisma } from './prisma'
 
+// Build per-app clinic_ids for a user:
+// 'ALL' if clinic_access_all=true, else array of external_ids filtered by app
+async function buildClinicIdsForApps(
+  userId: string,
+  appIds: string[],
+): Promise<Record<string, string[] | 'ALL'>> {
+  const user = await prisma.hubUser.findUnique({
+    where: { id: userId },
+    select: {
+      clinic_access_all: true,
+      clinicAccess: { include: { clinic: { select: { app_id: true, external_id: true } } } },
+    },
+  })
+  if (!user) return Object.fromEntries(appIds.map((a) => [a, 'ALL' as const]))
+  if (user.clinic_access_all) return Object.fromEntries(appIds.map((a) => [a, 'ALL' as const]))
+
+  const result: Record<string, string[] | 'ALL'> = {}
+  for (const appId of appIds) {
+    result[appId] = user.clinicAccess
+      .filter((ca) => ca.clinic.app_id === appId)
+      .map((ca) => ca.clinic.external_id)
+  }
+  return result
+}
+
 const APP_URLS: Record<string, string | undefined> = {
   clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
   clinicvox:     process.env.NEXT_PUBLIC_URL_CLINICVOX,
@@ -66,11 +91,11 @@ export async function pushUserToApps(user: {
   } catch { /* non-fatal */ }
 
   const secret = getJwtSecret()
+  const appEntries = Object.entries(APP_URLS).filter((entry): entry is [string, string] => Boolean(entry[1]))
+  const clinicIdsByApp = await buildClinicIdsForApps(user.id, appEntries.map(([id]) => id))
 
   await Promise.allSettled(
-    Object.entries(APP_URLS)
-      .filter((entry): entry is [string, string] => Boolean(entry[1]))
-      .map(([appId, appUrl]) => {
+    appEntries.map(([appId, appUrl]) => {
         // Use app-specific role if set, otherwise fall back to hub role
         const appRole = appRoles.find((r) => r.app_id === appId)?.role ?? user.role
 
@@ -87,6 +112,7 @@ export async function pushUserToApps(user: {
             name:                    user.name,
             role:                    appRole,
             company_slug:            companySlug,
+            clinic_ids:              clinicIdsByApp[appId] ?? 'ALL',
             subscription_plan:       user.subscription_plan,
             subscription_expires_at: user.subscription_expires_at,
             max_clinics:             user.max_clinics,

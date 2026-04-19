@@ -28,6 +28,7 @@ export interface HubUser {
   role: string
   company_id: string | null
   active: boolean
+  clinic_access_all: boolean
   subscription_plan: string
   subscription_expires_at: string | null
   max_clinics: number
@@ -82,13 +83,14 @@ function serializeCompany(c: {
 
 function serializeUser(u: {
   id: string; email: string; password_hash: string; name: string; role: string
-  company_id: string | null; active: boolean
+  company_id: string | null; active: boolean; clinic_access_all?: boolean
   subscription_plan: string; subscription_expires_at: Date | null; max_clinics: number
   created_at: Date; updated_at: Date
   company?: { id: string; name: string; slug: string } | null
 }): HubUser {
   return {
     ...u,
+    clinic_access_all: u.clinic_access_all !== false,
     subscription_expires_at: u.subscription_expires_at?.toISOString() ?? null,
     created_at: u.created_at.toISOString(),
     updated_at: u.updated_at.toISOString(),
@@ -203,12 +205,14 @@ export async function getUser(id: string): Promise<HubUser | null> {
 export async function createUser(input: {
   email: string; password_hash: string; name: string; role: string; company_id?: string | null
   subscription_plan?: string; subscription_expires_at?: string | null; max_clinics?: number
+  clinic_access_all?: boolean
 }): Promise<HubUser> {
   const { subscription_expires_at, ...rest } = input
   const row = await prisma.hubUser.create({
     data: {
       ...rest,
       active: true,
+      clinic_access_all: rest.clinic_access_all !== false,
       subscription_expires_at: subscription_expires_at ? new Date(subscription_expires_at) : null,
     },
   })
@@ -282,6 +286,60 @@ export async function setUserAppRoles(userId: string, roles: { app_id: string; r
   await prisma.userAppRole.deleteMany({ where: { user_id: userId } })
   if (roles.length === 0) return
   await prisma.userAppRole.createMany({ data: roles.map((r) => ({ user_id: userId, ...r })) })
+}
+
+// ─── Clinics ──────────────────────────────────────────────────────────────────
+
+export interface HubClinic {
+  id: string
+  external_id: string
+  app_id: string
+  name: string
+  company_id: string
+  active: boolean
+}
+
+export async function upsertClinic(input: {
+  external_id: string
+  app_id: string
+  name: string
+  company_id: string
+  active?: boolean
+}): Promise<HubClinic> {
+  const row = await prisma.clinic.upsert({
+    where: { app_id_external_id: { app_id: input.app_id, external_id: input.external_id } },
+    create: { ...input, active: input.active ?? true },
+    update: { name: input.name, active: input.active ?? true },
+  })
+  return row
+}
+
+export async function listClinicsByCompany(companyId: string): Promise<HubClinic[]> {
+  return prisma.clinic.findMany({
+    where: { company_id: companyId, active: true },
+    orderBy: [{ app_id: 'asc' }, { name: 'asc' }],
+  })
+}
+
+export async function getUserClinicAccess(userId: string): Promise<HubClinic[]> {
+  const rows = await prisma.userClinicAccess.findMany({
+    where: { user_id: userId },
+    include: { clinic: true },
+  })
+  return rows.map((r) => r.clinic)
+}
+
+export async function setUserClinicAccess(userId: string, clinicIds: string[]): Promise<void> {
+  await prisma.userClinicAccess.deleteMany({ where: { user_id: userId } })
+  if (clinicIds.length === 0) return
+  await prisma.userClinicAccess.createMany({
+    data: clinicIds.map((clinic_id) => ({ user_id: userId, clinic_id })),
+  })
+}
+
+export async function setUserClinicAccessAll(userId: string, all: boolean): Promise<void> {
+  await prisma.hubUser.update({ where: { id: userId }, data: { clinic_access_all: all } })
+  if (all) await prisma.userClinicAccess.deleteMany({ where: { user_id: userId } })
 }
 
 // ─── Sync Logs ────────────────────────────────────────────────────────────────
