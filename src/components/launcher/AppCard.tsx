@@ -1,6 +1,6 @@
 import {
   Activity, Phone, Stethoscope, UserCheck, Clock, Receipt,
-  LayoutGrid, Building2, BarChart3, MessageSquare, ArrowUpRight,
+  LayoutGrid, Building2, BarChart3, MessageSquare, ArrowUpRight, Lock,
 } from 'lucide-react'
 import type { AppDef } from '@/lib/apps'
 
@@ -19,6 +19,7 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
 
 interface AppCardProps {
   app: AppDef
+  locked?: boolean
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -33,18 +34,22 @@ const STATUS_LABELS: Record<string, string> = {
   coming_soon: 'Próximamente',
 }
 
-export default function AppCard({ app }: AppCardProps) {
+export default function AppCard({ app, locked = false }: AppCardProps) {
   const Icon = ICON_MAP[app.icon] ?? Activity
-  const isDisabled = app.status === 'coming_soon' || app.url === '#'
+  const isComingSoon = app.status === 'coming_soon' || app.url === '#'
+  const isDisabled = isComingSoon || locked
 
   const cardContent = (
     <>
       {/* Icon */}
       <div
         className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: app.bgColor }}
+        style={{ background: locked ? '#f3f4f6' : app.bgColor }}
       >
-        <Icon style={{ width: 24, height: 24, color: app.color }} />
+        {locked
+          ? <Lock style={{ width: 20, height: 20, color: '#9ca3af' }} />
+          : <Icon style={{ width: 24, height: 24, color: app.color }} />
+        }
       </div>
 
       {/* Body */}
@@ -63,18 +68,22 @@ export default function AppCard({ app }: AppCardProps) {
         <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
           {app.category}
         </span>
-        <span
-          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${STATUS_STYLES[app.status]}`}
-        >
-          {STATUS_LABELS[app.status]}
-        </span>
+        {locked ? (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md text-red-600 bg-red-50">
+            Sin acceso
+          </span>
+        ) : (
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${STATUS_STYLES[app.status]}`}>
+            {STATUS_LABELS[app.status]}
+          </span>
+        )}
       </div>
     </>
   )
 
   if (isDisabled) {
     return (
-      <div className="group bg-white rounded-xl border border-gray-100 shadow-card p-5 flex flex-col gap-3 opacity-60 cursor-not-allowed">
+      <div className={`group bg-white rounded-xl border border-gray-100 shadow-card p-5 flex flex-col gap-3 cursor-not-allowed ${locked ? 'opacity-40' : 'opacity-60'}`}>
         {cardContent}
       </div>
     )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search } from 'lucide-react'
 import AppCard from '@/components/launcher/AppCard'
 import { APPS, CATEGORIES } from '@/lib/apps'
@@ -11,9 +11,17 @@ export default function LauncherPage() {
   const user = useUser()
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [query, setQuery] = useState('')
+  const [accessibleApps, setAccessibleApps] = useState<Set<string> | null>(null)
 
   const firstName = user?.name.split(' ')[0] ?? 'Usuario'
   const greeting = getGreeting()
+
+  useEffect(() => {
+    fetch('/api/user/apps')
+      .then((r) => r.json())
+      .then((d) => setAccessibleApps(new Set(d.appIds ?? [])))
+      .catch(() => setAccessibleApps(new Set()))
+  }, [])
 
   const filtered = APPS.filter((app) => {
     const matchCat = selectedCategory === 'Todos' || app.category === selectedCategory
@@ -71,9 +79,14 @@ export default function LauncherPage() {
       {/* App grid */}
       {filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((app) => (
-            <AppCard key={app.id} app={app} />
-          ))}
+          {filtered.map((app) => {
+            const locked =
+              accessibleApps !== null &&
+              app.status !== 'coming_soon' &&
+              app.url !== '#' &&
+              !accessibleApps.has(app.id)
+            return <AppCard key={app.id} app={app} locked={locked} />
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
