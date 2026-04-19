@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { getSession } from '@/lib/auth'
 import { listUsers, createUser, getUserByEmail, setUserAppRoles } from '@/lib/db'
 import { getInitials } from '@/lib/utils'
+import { pushUserToApps } from '@/lib/sync'
 
 async function requireSuperadmin() {
   const session = await getSession()
@@ -40,6 +41,9 @@ export async function POST(req: NextRequest) {
     role,
     company_id: company_id || null,
   })
+
+  // fire-and-forget sync to all apps
+  pushUserToApps({ id: user.id, email: user.email, name: user.name, role: user.role, companyId: user.company_id }).catch(() => {})
 
   if (Array.isArray(app_roles) && app_roles.length > 0) {
     await setUserAppRoles(user.id, app_roles.filter((r: { app_id: string; role: string }) => r.role))

@@ -17,6 +17,10 @@ model Company {
   email      String?
   phone      String?
   address    String?
+  subscription_plan       String    @default("free")
+  subscription_expires_at DateTime?
+  max_clinics            Int       @default(5)
+  max_users              Int       @default(20)
   active     Boolean  @default(true)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

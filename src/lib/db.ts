@@ -11,6 +11,10 @@ export interface Company {
   email: string | null
   phone: string | null
   address: string | null
+  subscription_plan: string
+  subscription_expires_at: string | null
+  max_clinics: number
+  max_users: number
   active: boolean
   created_at: string
   updated_at: string
@@ -59,12 +63,15 @@ export interface SyncLog {
 function serializeCompany(c: {
   id: string; name: string; slug: string; cif?: string | null; city?: string | null
   email: string | null; phone: string | null; address: string | null
+  subscription_plan: string; subscription_expires_at: Date | null
+  max_clinics: number; max_users: number
   active: boolean; created_at: Date; updated_at: Date
 }): Company {
   return {
     ...c,
     cif: c.cif ?? null,
     city: c.city ?? null,
+    subscription_expires_at: c.subscription_expires_at?.toISOString() ?? null,
     created_at: c.created_at.toISOString(),
     updated_at: c.updated_at.toISOString(),
   }
@@ -119,8 +126,18 @@ export async function getCompany(id: string): Promise<Company | null> {
 
 export async function createCompany(input: {
   name: string; slug: string; cif?: string; city?: string; email?: string; phone?: string; address?: string
+  subscription_plan?: string; subscription_expires_at?: string | null; max_clinics?: number; max_users?: number
 }): Promise<Company> {
-  const row = await prisma.company.create({ data: { ...input, active: true } })
+  const { subscription_expires_at, ...rest } = input
+  const row = await prisma.company.create({
+    data: {
+      ...rest,
+      active: true,
+      ...(subscription_expires_at != null
+        ? { subscription_expires_at: new Date(subscription_expires_at) }
+        : {}),
+    },
+  })
   return serializeCompany(row)
 }
 

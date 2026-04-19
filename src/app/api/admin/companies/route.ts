@@ -18,12 +18,24 @@ export async function POST(req: NextRequest) {
   if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, slug, cif, city, email, phone, address } = body
+  const { name, slug, cif, city, email, phone, address, subscription_plan, subscription_expires_at, max_clinics, max_users } = body
 
   if (!name || !slug) return NextResponse.json({ error: 'name y slug son obligatorios' }, { status: 400 })
 
   try {
-    const company = await createCompany({ name, slug: slug.toLowerCase().replace(/\s+/g, '-'), cif, city, email, phone, address })
+    const company = await createCompany({
+      name,
+      slug: slug.toLowerCase().replace(/\s+/g, '-'),
+      cif,
+      city,
+      email,
+      phone,
+      address,
+      subscription_plan,
+      subscription_expires_at,
+      max_clinics,
+      max_users,
+    })
     return NextResponse.json(company, { status: 201 })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error al crear empresa'
