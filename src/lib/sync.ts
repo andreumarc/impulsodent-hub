@@ -1,4 +1,5 @@
 import { SignJWT } from 'jose'
+import { prisma } from './prisma'
 
 const APP_URLS: Record<string, string | undefined> = {
   clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
@@ -12,6 +13,7 @@ const APP_URLS: Record<string, string | undefined> = {
   dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
   clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
   nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
+  clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
 }
 
 async function makeHubJwt(): Promise<string> {
@@ -45,27 +47,53 @@ export async function pushUserToApps(user: {
     return
   }
 
-  const urls = Object.values(APP_URLS).filter((u): u is string => Boolean(u))
+  // Look up company slug for cross-app tenant filtering
+  let companySlug: string | null = null
+  if (user.companyId) {
+    try {
+      const company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: { slug: true },
+      })
+      companySlug = company?.slug ?? null
+    } catch { /* non-fatal */ }
+  }
+
+  // Look up per-app roles for this user
+  let appRoles: { app_id: string; role: string }[] = []
+  try {
+    appRoles = await prisma.userAppRole.findMany({ where: { user_id: user.id } })
+  } catch { /* non-fatal */ }
+
+  const secret = getJwtSecret()
 
   await Promise.allSettled(
-    urls.map((appUrl) =>
-      fetch(`${appUrl}/api/sync/user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getJwtSecret()}`,
-        },
-        body: JSON.stringify({
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          subscription_plan: user.subscription_plan,
-          subscription_expires_at: user.subscription_expires_at,
-          max_clinics: user.max_clinics,
-          hub_token: token,
-        }),
-      }).catch(() => {}),
-    ),
+    Object.entries(APP_URLS)
+      .filter((entry): entry is [string, string] => Boolean(entry[1]))
+      .map(([appId, appUrl]) => {
+        // Use app-specific role if set, otherwise fall back to hub role
+        const appRole = appRoles.find((r) => r.app_id === appId)?.role ?? user.role
+
+        // fichaje runs NestJS with api/v1 global prefix
+        const syncPath = appId === 'fichaje' ? '/api/v1/sync/user' : '/api/sync/user'
+        return fetch(`${appUrl}${syncPath}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${secret}`,
+          },
+          body: JSON.stringify({
+            email:                   user.email,
+            name:                    user.name,
+            role:                    appRole,
+            company_slug:            companySlug,
+            subscription_plan:       user.subscription_plan,
+            subscription_expires_at: user.subscription_expires_at,
+            max_clinics:             user.max_clinics,
+            hub_token:               token,
+          }),
+        }).catch(() => {})
+      }),
   )
 }
 
