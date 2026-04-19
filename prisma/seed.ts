@@ -13,6 +13,7 @@ const APPS = [
   { app_id: 'nexuserp',      name: 'NexusERP' },
   { app_id: 'dentalhr',      name: 'DentalHR' },
   { app_id: 'dentalreports', name: 'DentalReports' },
+  { app_id: 'nexora',        name: 'Nexora' },
 ]
 
 async function main() {

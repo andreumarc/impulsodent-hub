@@ -124,6 +124,17 @@ export const APPS: AppDef[] = [
     status: 'active',
     category: 'Financiero',
   },
+  {
+    id: 'nexora',
+    name: 'Nexora',
+    description: 'Comunicación interna corporativa: chat, anuncios, documentos y tablón para grupos de clínicas.',
+    icon: 'MessageSquare',
+    color: '#7c3aed',
+    bgColor: '#ede9fe',
+    url: process.env.NEXT_PUBLIC_URL_NEXORA || '#',
+    status: 'active',
+    category: 'Comunicación',
+  },
 ]
 
 export const CATEGORIES = ['Todos', ...Array.from(new Set(APPS.map((a) => a.category)))]
