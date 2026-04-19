@@ -28,6 +28,9 @@ export interface HubUser {
   role: string
   company_id: string | null
   active: boolean
+  subscription_plan: string
+  subscription_expires_at: string | null
+  max_clinics: number
   created_at: string
   updated_at: string
   company?: Pick<Company, 'id' | 'name' | 'slug'>
@@ -79,11 +82,14 @@ function serializeCompany(c: {
 
 function serializeUser(u: {
   id: string; email: string; password_hash: string; name: string; role: string
-  company_id: string | null; active: boolean; created_at: Date; updated_at: Date
+  company_id: string | null; active: boolean
+  subscription_plan: string; subscription_expires_at: Date | null; max_clinics: number
+  created_at: Date; updated_at: Date
   company?: { id: string; name: string; slug: string } | null
 }): HubUser {
   return {
     ...u,
+    subscription_expires_at: u.subscription_expires_at?.toISOString() ?? null,
     created_at: u.created_at.toISOString(),
     updated_at: u.updated_at.toISOString(),
     company: u.company ?? undefined,
@@ -196,16 +202,29 @@ export async function getUser(id: string): Promise<HubUser | null> {
 
 export async function createUser(input: {
   email: string; password_hash: string; name: string; role: string; company_id?: string | null
+  subscription_plan?: string; subscription_expires_at?: string | null; max_clinics?: number
 }): Promise<HubUser> {
-  const row = await prisma.hubUser.create({ data: { ...input, active: true } })
+  const { subscription_expires_at, ...rest } = input
+  const row = await prisma.hubUser.create({
+    data: {
+      ...rest,
+      active: true,
+      subscription_expires_at: subscription_expires_at ? new Date(subscription_expires_at) : null,
+    },
+  })
   return serializeUser(row)
 }
 
 export async function updateUser(
   id: string,
-  input: Partial<Pick<HubUser, 'name' | 'email' | 'role' | 'company_id' | 'active'> & { password_hash?: string }>,
+  input: Partial<Pick<HubUser, 'name' | 'email' | 'role' | 'company_id' | 'active' | 'subscription_plan' | 'max_clinics'> & { password_hash?: string; subscription_expires_at?: string | null }>,
 ): Promise<HubUser> {
-  const row = await prisma.hubUser.update({ where: { id }, data: input })
+  const { subscription_expires_at, ...rest } = input
+  const data: Record<string, unknown> = { ...rest }
+  if (subscription_expires_at !== undefined) {
+    data.subscription_expires_at = subscription_expires_at ? new Date(subscription_expires_at) : null
+  }
+  const row = await prisma.hubUser.update({ where: { id }, data })
   return serializeUser(row)
 }
 

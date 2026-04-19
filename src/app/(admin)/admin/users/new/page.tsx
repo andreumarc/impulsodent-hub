@@ -13,7 +13,7 @@ type AppRoleMap = Record<string, string>
 export default function NewUserPage() {
   const router = useRouter()
   const [companies, setCompanies] = useState<Company[]>([])
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', company_id: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', company_id: '', subscription_plan: 'free', subscription_expires_at: '', max_clinics: 5 })
   const [appRoles, setAppRoles] = useState<AppRoleMap>({})
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
@@ -38,7 +38,12 @@ export default function NewUserPage() {
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, company_id: form.company_id || null, app_roles }),
+        body: JSON.stringify({
+          ...form,
+          company_id: form.company_id || null,
+          app_roles,
+          subscription_expires_at: form.subscription_expires_at || null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Error al crear usuario'); return }
@@ -117,6 +122,35 @@ export default function NewUserPage() {
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Subscription */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-card p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-800">Suscripción</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Plan</label>
+              <select value={form.subscription_plan} onChange={(e) => setForm((f) => ({ ...f, subscription_plan: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
+                <option value="free">Free</option>
+                <option value="starter">Starter</option>
+                <option value="pro">Pro</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Fecha de caducidad</label>
+              <input type="date" value={form.subscription_expires_at}
+                onChange={(e) => setForm((f) => ({ ...f, subscription_expires_at: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Máx. clínicas</label>
+              <input type="number" min={1} value={form.max_clinics}
+                onChange={(e) => setForm((f) => ({ ...f, max_clinics: Number(e.target.value) }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400" />
             </div>
           </div>
         </div>

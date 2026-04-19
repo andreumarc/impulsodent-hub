@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { email, password, name, role, company_id, app_roles } = body
+  const { email, password, name, role, company_id, app_roles, subscription_plan, subscription_expires_at, max_clinics } = body
 
   if (!email || !password || !name || !role) {
     return NextResponse.json({ error: 'email, password, name y role son obligatorios' }, { status: 400 })
@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
     name,
     role,
     company_id: company_id || null,
+    subscription_plan: subscription_plan ?? 'free',
+    subscription_expires_at: subscription_expires_at || null,
+    max_clinics: max_clinics ?? 5,
   })
 
   // fire-and-forget sync to all apps

@@ -5,9 +5,17 @@ import Link from 'next/link'
 import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff } from 'lucide-react'
 import { HUB_ROLES, getRoleStyle } from '@/lib/roles'
 
+const PLAN_COLORS: Record<string, string> = {
+  free: 'bg-gray-100 text-gray-500',
+  starter: 'bg-blue-50 text-blue-600',
+  pro: 'bg-purple-50 text-purple-600',
+  enterprise: 'bg-amber-50 text-amber-600',
+}
+
 interface HubUser {
   id: string; name: string; email: string; role: string; active: boolean
   created_at: string; company: { id: string; name: string; slug: string } | null
+  subscription_plan: string; subscription_expires_at: string | null
 }
 
 function getInitials(name: string) {
@@ -195,6 +203,7 @@ export default function UsersPage() {
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Rol</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Empresa</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Estado</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Suscripción</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Alta</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Acciones</th>
               </tr>
@@ -238,6 +247,24 @@ export default function UsersPage() {
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${u.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
                         {u.active ? 'Activo' : 'Inactivo'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${PLAN_COLORS[u.subscription_plan] ?? PLAN_COLORS.free}`}>
+                          {u.subscription_plan ?? 'free'}
+                        </span>
+                        {u.subscription_expires_at && (() => {
+                          const exp = new Date(u.subscription_expires_at)
+                          const daysLeft = Math.ceil((exp.getTime() - Date.now()) / 86400000)
+                          const expired = daysLeft < 0
+                          const soon = !expired && daysLeft <= 30
+                          return (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${expired ? 'bg-red-50 text-red-600' : soon ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400'}`}>
+                              {expired ? 'Caducado' : `${daysLeft}d`}
+                            </span>
+                          )
+                        })()}
+                      </div>
                     </td>
                     <td className="px-4 py-3 hidden xl:table-cell">
                       <span className="text-xs text-gray-500">{formatDate(u.created_at)}</span>

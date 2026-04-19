@@ -33,15 +33,18 @@ model Company {
 }
 
 model HubUser {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password_hash String
-  name          String
-  role          String   @default("admin")
-  company_id    String?
-  active        Boolean  @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id                      String    @id @default(cuid())
+  email                   String    @unique
+  password_hash           String
+  name                    String
+  role                    String    @default("admin")
+  company_id              String?
+  active                  Boolean   @default(true)
+  subscription_plan       String    @default("free")
+  subscription_expires_at DateTime?
+  max_clinics             Int       @default(5)
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
 
   company  Company?      @relation(fields: [company_id], references: [id], onDelete: SetNull)
   appRoles UserAppRole[]

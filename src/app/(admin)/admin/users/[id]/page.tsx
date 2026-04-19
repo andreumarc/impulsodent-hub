@@ -14,7 +14,7 @@ export default function EditUserPage() {
   const router = useRouter()
   const { id } = useParams<{ id: string }>()
   const [companies, setCompanies] = useState<Company[]>([])
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', company_id: '', active: true })
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', company_id: '', active: true, subscription_plan: 'free', subscription_expires_at: '', max_clinics: 5 })
   const [appRoles, setAppRoles] = useState<AppRoleMap>({})
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
@@ -29,7 +29,7 @@ export default function EditUserPage() {
     ]).then(([companies, user]) => {
       if (user.error) { setNotFound(true); return }
       setCompanies(companies)
-      setForm({ name: user.name, email: user.email, password: '', role: user.role, company_id: user.company_id ?? '', active: user.active })
+      setForm({ name: user.name, email: user.email, password: '', role: user.role, company_id: user.company_id ?? '', active: user.active, subscription_plan: user.subscription_plan ?? 'free', subscription_expires_at: user.subscription_expires_at ? String(user.subscription_expires_at).slice(0, 10) : '', max_clinics: user.max_clinics ?? 5 })
       const roleMap: AppRoleMap = {}
       for (const r of user.app_roles ?? []) roleMap[r.app_id] = r.role
       setAppRoles(roleMap)
@@ -51,6 +51,9 @@ export default function EditUserPage() {
       const body: Record<string, unknown> = {
         name: form.name, email: form.email, role: form.role,
         company_id: form.company_id || null, active: form.active, app_roles,
+        subscription_plan: form.subscription_plan,
+        subscription_expires_at: form.subscription_expires_at || null,
+        max_clinics: form.max_clinics,
       }
       if (form.password) body.password = form.password
 
@@ -157,6 +160,35 @@ export default function EditUserPage() {
               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
             <span className="text-sm text-gray-700">Usuario {form.active ? 'activo' : 'inactivo'}</span>
+          </div>
+        </div>
+
+        {/* Subscription */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-card p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-800">Suscripción</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Plan</label>
+              <select value={form.subscription_plan} onChange={(e) => setForm((f) => ({ ...f, subscription_plan: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
+                <option value="free">Free</option>
+                <option value="starter">Starter</option>
+                <option value="pro">Pro</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Fecha de caducidad</label>
+              <input type="date" value={form.subscription_expires_at}
+                onChange={(e) => setForm((f) => ({ ...f, subscription_expires_at: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Máx. clínicas</label>
+              <input type="number" min={1} value={form.max_clinics}
+                onChange={(e) => setForm((f) => ({ ...f, max_clinics: Number(e.target.value) }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
           </div>
         </div>
 
