@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT } from 'jose'
 import { getSession } from '@/lib/auth'
-import { getUserAppRoles } from '@/lib/db'
+import { getUserAppRoles, getCompany } from '@/lib/db'
 
 const APP_URLS: Record<string, string | undefined> = {
   clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
@@ -48,6 +48,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Aplicación no configurada' }, { status: 404 })
   }
 
+  // Look up company slug for cross-app tenant filtering
+  let companySlug: string | null = null
+  if (session.companyId) {
+    const company = await getCompany(session.companyId)
+    companySlug = company?.slug ?? null
+  }
+
   // Get user's role for this specific app
   let appRole = session.role === 'superadmin' ? 'superadmin' : ''
   if (session.role !== 'superadmin') {
@@ -63,7 +70,8 @@ export async function GET(req: NextRequest) {
     hub_role:   session.role,
     app_role:   appRole,
     app_id:     appId,
-    company_id: session.companyId ?? null,
+    company_id:   session.companyId ?? null,
+    company_slug: companySlug,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
