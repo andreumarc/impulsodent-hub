@@ -47,7 +47,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       {/* ── Left panel ─────────────────────────────────────────────── */}
       <div
         className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden"
@@ -95,10 +95,13 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right panel ────────────────────────────────────────────── */}
-      <div className="flex-1 bg-white flex flex-col items-center justify-center p-6 sm:p-10">
-        {/* Mobile logo */}
-        <div className="flex lg:hidden mb-8">
-          <BrandLogo variant="dark" size="lg" />
+      <div className="flex-1 bg-white flex flex-col items-center justify-center px-6 py-10 sm:p-10 min-h-screen lg:min-h-0">
+        {/* Mobile header band */}
+        <div
+          className="flex lg:hidden w-full items-center justify-center py-5 px-6 mb-6 rounded-2xl"
+          style={{ background: '#003A70' }}
+        >
+          <BrandLogo variant="light" size="lg" />
         </div>
 
         <div className="w-full max-w-sm">
@@ -151,8 +154,8 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isPending}
-              className="w-full py-2.5 px-4 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-              style={{ background: '#003A70' }}
+              className="w-full py-3.5 px-4 text-white font-semibold rounded-xl text-base transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              style={{ background: '#003A70', minHeight: '52px' }}
               onMouseEnter={(e) => { if (!isPending) e.currentTarget.style.background = '#003263' }}
               onMouseLeave={(e) => { if (!isPending) e.currentTarget.style.background = '#003A70' }}
             >
