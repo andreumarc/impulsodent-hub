@@ -46,7 +46,16 @@ export async function POST(req: NextRequest) {
   })
 
   // fire-and-forget sync to all apps
-  pushUserToApps({ id: user.id, email: user.email, name: user.name, role: user.role, companyId: user.company_id }).catch(() => {})
+  pushUserToApps({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    companyId: user.company_id,
+    subscription_plan: user.subscription_plan,
+    subscription_expires_at: user.subscription_expires_at,
+    max_clinics: user.max_clinics,
+  }).catch(() => {})
 
   if (Array.isArray(app_roles) && app_roles.length > 0) {
     await setUserAppRoles(user.id, app_roles.filter((r: { app_id: string; role: string }) => r.role))

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login']
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/sync/user', '/api/sync/company']
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
 
 export async function middleware(req: NextRequest) {

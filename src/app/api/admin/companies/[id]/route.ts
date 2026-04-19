@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getCompany, updateCompany, deleteCompany, getCompanyAppAccess } from '@/lib/db'
+import { pushCompanyToApps } from '@/lib/sync'
 
 async function requireSuperadmin() {
   const session = await getSession()
@@ -23,6 +24,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json()
   try {
     const updated = await updateCompany(id, body)
+    pushCompanyToApps({
+      slug: updated.slug,
+      name: updated.name,
+      taxId: updated.cif,
+      email: updated.email,
+      phone: updated.phone,
+      address: updated.address,
+      subscription_plan: updated.subscription_plan,
+      subscription_expires_at: updated.subscription_expires_at,
+      max_clinics: updated.max_clinics,
+      max_users: updated.max_users,
+      active: updated.active,
+    }).catch(() => {})
     return NextResponse.json(updated)
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Error' }, { status: 500 })

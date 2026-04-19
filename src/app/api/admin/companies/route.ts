@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { listCompaniesWithStats, createCompany } from '@/lib/db'
+import { pushCompanyToApps } from '@/lib/sync'
 
 async function requireSuperadmin() {
   const session = await getSession()
@@ -36,6 +37,19 @@ export async function POST(req: NextRequest) {
       max_clinics,
       max_users,
     })
+    pushCompanyToApps({
+      slug: company.slug,
+      name: company.name,
+      taxId: company.cif,
+      email: company.email,
+      phone: company.phone,
+      address: company.address,
+      subscription_plan: company.subscription_plan,
+      subscription_expires_at: company.subscription_expires_at,
+      max_clinics: company.max_clinics,
+      max_users: company.max_users,
+      active: company.active,
+    }).catch(() => {})
     return NextResponse.json(company, { status: 201 })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error al crear empresa'

@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { email, name, role, company_id } = body
+  const { email, name, role, company_id, subscription_plan, subscription_expires_at, max_clinics } = body
 
   if (!email || !name) {
     return NextResponse.json({ error: 'email y name son obligatorios' }, { status: 400 })
@@ -34,11 +34,19 @@ export async function POST(req: NextRequest) {
       email,
       password_hash,
       name,
-      role: role ?? 'user',
+      role: role ?? 'admin',
       company_id: company_id ?? null,
+      subscription_plan: subscription_plan ?? 'free',
+      subscription_expires_at: subscription_expires_at ?? null,
+      max_clinics: max_clinics ?? 5,
     })
   } else {
-    await updateUser(existing.id, { name })
+    await updateUser(existing.id, {
+      name,
+      ...(subscription_plan ? { subscription_plan } : {}),
+      ...(subscription_expires_at !== undefined ? { subscription_expires_at } : {}),
+      ...(max_clinics !== undefined ? { max_clinics } : {}),
+    })
   }
 
   return NextResponse.json({ ok: true })

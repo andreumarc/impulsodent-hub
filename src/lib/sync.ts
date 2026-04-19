@@ -24,12 +24,19 @@ async function makeHubJwt(): Promise<string> {
     .sign(secret)
 }
 
+function getJwtSecret(): string {
+  return process.env.JWT_SECRET ?? ''
+}
+
 export async function pushUserToApps(user: {
   id: string
   email: string
   name: string
   role: string
   companyId?: string | null
+  subscription_plan?: string
+  subscription_expires_at?: string | null
+  max_clinics?: number
 }): Promise<void> {
   let token: string
   try {
@@ -46,14 +53,49 @@ export async function pushUserToApps(user: {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${getJwtSecret()}`,
         },
         body: JSON.stringify({
           email: user.email,
           name: user.name,
           role: user.role,
+          subscription_plan: user.subscription_plan,
+          subscription_expires_at: user.subscription_expires_at,
+          max_clinics: user.max_clinics,
           hub_token: token,
         }),
+      }).catch(() => {}),
+    ),
+  )
+}
+
+export async function pushCompanyToApps(company: {
+  slug: string
+  name: string
+  taxId?: string | null
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  subscription_plan?: string
+  subscription_expires_at?: string | null
+  max_clinics?: number
+  max_users?: number
+  active?: boolean
+}): Promise<void> {
+  const secret = getJwtSecret()
+  if (!secret) return
+
+  const urls = Object.values(APP_URLS).filter((u): u is string => Boolean(u))
+
+  await Promise.allSettled(
+    urls.map((appUrl) =>
+      fetch(`${appUrl}/api/sync/company`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${secret}`,
+        },
+        body: JSON.stringify(company),
       }).catch(() => {}),
     ),
   )
