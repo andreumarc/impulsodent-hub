@@ -15,6 +15,7 @@ const APP_URLS: Record<string, string | undefined> = {
   dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
   clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
   nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
+  clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
 }
 
 // Each app's SSO receiver path
@@ -30,6 +31,7 @@ const APP_SSO_PATHS: Record<string, string> = {
   dentalreports: '/api/auth/hub-sso',  // Supabase
   clinicrefunds: '/api/auth/hub-sso',  // NextAuth
   nexora:        '/api/auth/hub-sso',  // NextAuth
+  clinicstock:   '/api/auth/hub-sso',  // NextAuth
 }
 
 export async function GET(req: NextRequest) {
