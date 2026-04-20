@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Pencil, Power, Trash2, LayoutGrid, Building2, ChevronDown, Calendar } from 'lucide-react'
+import { Plus, Search, Pencil, Power, Trash2, LayoutGrid, Building2, ChevronDown, Calendar, RefreshCw } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
 const PLAN_LABELS: Record<string, string> = { free: 'Free', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise' }
@@ -35,6 +35,8 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [pulling, setPulling] = useState(false)
+  const [pullSummary, setPullSummary] = useState<{ app_id: string; ok: boolean; created: number; updated: number; error?: string }[] | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/companies')
@@ -43,6 +45,17 @@ export default function CompaniesPage() {
       .catch(() => null)
       .finally(() => setLoading(false))
   }, [])
+
+  async function handlePull() {
+    setPulling(true); setPullSummary(null)
+    try {
+      const r = await fetch('/api/admin/companies?pull=1')
+      const d = await r.json() as { pull?: typeof pullSummary; companies?: CompanyWithStats[] }
+      if (Array.isArray(d.companies)) setCompanies(d.companies)
+      if (Array.isArray(d.pull)) setPullSummary(d.pull)
+    } catch { /* non-fatal */ }
+    finally { setPulling(false) }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -81,12 +94,42 @@ export default function CompaniesPage() {
             {companies.length} empresa{companies.length !== 1 ? 's' : ''} registrada{companies.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Link href="/admin/companies/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors">
-          <Plus className="w-4 h-4" />
-          Nueva Empresa
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePull}
+            disabled={pulling}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${pulling ? 'animate-spin' : ''}`} />
+            {pulling ? 'Sincronizando…' : 'Pull desde apps'}
+          </button>
+          <Link href="/admin/companies/new"
+            className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors">
+            <Plus className="w-4 h-4" />
+            Nueva Empresa
+          </Link>
+        </div>
       </div>
+
+      {pullSummary && (
+        <div className="mb-5 rounded-xl border border-gray-100 bg-white p-3 text-xs text-gray-600">
+          <div className="font-semibold text-gray-700 mb-1.5">Resultado de la sincronización</div>
+          <div className="flex flex-wrap gap-2">
+            {pullSummary.map((s) => (
+              <span
+                key={s.app_id}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border ${
+                  s.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
+                }`}
+                title={s.error}
+              >
+                <span className="font-semibold uppercase tracking-wide">{s.app_id}</span>
+                {s.ok ? <span>+{s.created} nuevos · {s.updated} actualizados</span> : <span>{s.error || 'error'}</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex gap-3 mb-5">

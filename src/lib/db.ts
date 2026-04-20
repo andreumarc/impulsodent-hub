@@ -370,3 +370,104 @@ export async function createSyncLog(input: {
 }): Promise<void> {
   await prisma.syncLog.create({ data: input })
 }
+
+// ─── External Pull Upserts ────────────────────────────────────────────────────
+// Used when the Hub pulls users/companies from sub-apps. Match by natural key
+// (email for users, slug for companies) so the same person/org across apps
+// collapses to one Hub row.
+
+export async function upsertExternalCompany(input: {
+  name: string
+  slug: string
+  cif?: string | null
+  city?: string | null
+  email?: string | null
+  phone?: string | null
+}): Promise<{ company: Company; created: boolean }> {
+  const slug = input.slug.toLowerCase().trim()
+  const existing = await prisma.company.findUnique({ where: { slug } })
+  if (existing) {
+    const row = await prisma.company.update({
+      where: { slug },
+      data: {
+        // Only fill missing fields — never overwrite Hub-managed values
+        name: existing.name || input.name,
+        cif:  existing.cif  ?? input.cif  ?? null,
+        city: existing.city ?? input.city ?? null,
+        email: existing.email ?? input.email ?? null,
+        phone: existing.phone ?? input.phone ?? null,
+      },
+    })
+    return { company: serializeCompany(row), created: false }
+  }
+  const row = await prisma.company.create({
+    data: {
+      name: input.name,
+      slug,
+      cif:   input.cif   ?? null,
+      city:  input.city  ?? null,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      address: null,
+    },
+  })
+  return { company: serializeCompany(row), created: true }
+}
+
+export async function upsertExternalUser(input: {
+  email: string
+  name: string
+  role?: string
+  company_slug?: string | null
+  app_id: string
+  app_role?: string
+}): Promise<{ user: HubUser; created: boolean }> {
+  const email = input.email.toLowerCase().trim()
+  let company_id: string | null = null
+  if (input.company_slug) {
+    const c = await prisma.company.findUnique({ where: { slug: input.company_slug.toLowerCase().trim() } })
+    company_id = c?.id ?? null
+  }
+
+  const existing = await prisma.hubUser.findUnique({ where: { email } })
+  let user: HubUser
+  let created = false
+
+  if (existing) {
+    const row = await prisma.hubUser.update({
+      where: { email },
+      data: {
+        // Don't overwrite existing Hub-managed name/role; only backfill missing
+        name: existing.name || input.name,
+        company_id: existing.company_id ?? company_id,
+      },
+    })
+    user = serializeUser(row)
+  } else {
+    // Pulled users have no password (SSO-only). Use a non-empty placeholder
+    // to satisfy NOT NULL — they cannot log in until reset.
+    const row = await prisma.hubUser.create({
+      data: {
+        email,
+        password_hash: '!pulled-from-app-no-password!',
+        name: input.name || email,
+        role: input.role || 'admin',
+        company_id,
+        active: true,
+      },
+    })
+    user = serializeUser(row)
+    created = true
+  }
+
+  // Record the per-app role mapping
+  if (input.app_role) {
+    await prisma.userAppRole.upsert({
+      where:  { user_id_app_id: { user_id: user.id, app_id: input.app_id } },
+      create: { user_id: user.id, app_id: input.app_id, role: input.app_role },
+      update: { role: input.app_role },
+    })
+  }
+
+  return { user, created }
+}

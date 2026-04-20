@@ -1,9 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { getSession } from '@/lib/auth'
-import { listUsers, createUser, getUserByEmail, setUserAppRoles, setUserClinicAccess, setUserClinicAccessAll } from '@/lib/db'
+import {
+  listUsers, createUser, getUserByEmail,
+  setUserAppRoles, setUserClinicAccess, setUserClinicAccessAll,
+  upsertExternalUser,
+} from '@/lib/db'
 import { getInitials } from '@/lib/utils'
 import { pushUserToApps } from '@/lib/sync'
+
+const APP_URLS: Record<string, string | undefined> = {
+  clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
+  dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
+  dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
+  nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
+  fichaje:       process.env.NEXT_PUBLIC_URL_FICHAJE,
+  zentrix:       process.env.NEXT_PUBLIC_URL_ZENTRIX,
+  spendflow:     process.env.NEXT_PUBLIC_URL_SPENDFLOW,
+  clinicvox:     process.env.NEXT_PUBLIC_URL_CLINICVOX,
+  dentalspot:    process.env.NEXT_PUBLIC_URL_DENTALSPOT,
+  clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
+  clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+}
 
 async function requireSuperadmin() {
   const session = await getSession()
@@ -13,7 +31,66 @@ async function requireSuperadmin() {
 
 export async function GET(req: NextRequest) {
   if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const companyId = req.nextUrl.searchParams.get('companyId')
+  const pull      = req.nextUrl.searchParams.get('pull') === '1'
+  const onlyApp   = req.nextUrl.searchParams.get('app_id') ?? undefined
+
+  if (pull) {
+    const secret = process.env.JWT_SECRET ?? ''
+    const summary: { app_id: string; ok: boolean; created: number; updated: number; error?: string }[] = []
+
+    await Promise.allSettled(
+      Object.entries(APP_URLS)
+        .filter((e): e is [string, string] => Boolean(e[1]))
+        .filter(([appId]) => !onlyApp || onlyApp === appId)
+        .map(async ([appId, appUrl]) => {
+          try {
+            const qs = companyId ? `?company_id=${encodeURIComponent(companyId)}` : ''
+            const r = await fetch(`${appUrl.replace(/\/$/, '')}/api/sync/users${qs}`, {
+              headers: { Authorization: `Bearer ${secret}` },
+              signal: AbortSignal.timeout(15000),
+            })
+            if (!r.ok) {
+              summary.push({ app_id: appId, ok: false, created: 0, updated: 0, error: `HTTP ${r.status}` })
+              return
+            }
+            const data = await r.json() as Array<{
+              email: string; name?: string; role?: string; company_slug?: string | null
+            }>
+            let created = 0, updated = 0
+            for (const u of data) {
+              if (!u?.email) continue
+              try {
+                const res = await upsertExternalUser({
+                  email:        u.email,
+                  name:         u.name || u.email,
+                  role:         (u.role || 'admin').toLowerCase(),
+                  company_slug: u.company_slug ?? null,
+                  app_id:       appId,
+                  app_role:     u.role,
+                })
+                if (res.created) created++; else updated++
+              } catch { /* row-level errors are non-fatal */ }
+            }
+            summary.push({ app_id: appId, ok: true, created, updated })
+          } catch (err) {
+            summary.push({
+              app_id: appId, ok: false, created: 0, updated: 0,
+              error: err instanceof Error ? err.message : 'unknown',
+            })
+          }
+        }),
+    )
+
+    const all = await listUsers()
+    const users = companyId ? all.filter((u) => u.company_id === companyId) : all
+    return NextResponse.json({
+      pull: summary,
+      users: users.map((u) => ({ ...u, password_hash: undefined })),
+    })
+  }
+
   const all = await listUsers()
   const users = companyId ? all.filter((u) => u.company_id === companyId) : all
   return NextResponse.json(users.map((u) => ({ ...u, password_hash: undefined })))
