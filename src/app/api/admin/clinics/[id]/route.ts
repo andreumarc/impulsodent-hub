@@ -20,7 +20,7 @@ async function pushToSubApp(clinic: { app_id: string; external_id: string; name:
     const appUrl = APP_URLS[clinic.app_id]
     const secret = process.env.JWT_SECRET ?? ''
     if (!company?.slug || !appUrl || !secret) return
-    const syncPath = clinic.app_id === 'fichaje' ? '/api/v1/sync/clinics' : '/api/sync/clinics'
+    const syncPath = '/api/sync/clinics'
     await fetch(`${appUrl}${syncPath}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },

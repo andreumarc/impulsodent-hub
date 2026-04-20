@@ -99,8 +99,8 @@ export async function pushUserToApps(user: {
         // Use app-specific role if set, otherwise fall back to hub role
         const appRole = appRoles.find((r) => r.app_id === appId)?.role ?? user.role
 
-        // fichaje runs NestJS with api/v1 global prefix
-        const syncPath = appId === 'fichaje' ? '/api/v1/sync/user' : '/api/sync/user'
+        // All sub-apps (including fichaje, now Next.js on Vercel) use /api/sync/user.
+        const syncPath = '/api/sync/user'
         return fetch(`${appUrl}${syncPath}`, {
           method: 'POST',
           headers: {

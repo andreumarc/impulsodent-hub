@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         .filter((e): e is [string, string] => Boolean(e[1]))
         .map(async ([appId, appUrl]) => {
           try {
-            const syncPath = appId === 'fichaje' ? '/api/v1/sync/clinics' : '/api/sync/clinics'
+            const syncPath = '/api/sync/clinics'
             const r = await fetch(`${appUrl}${syncPath}?company_id=${company_id}`, {
               headers: { Authorization: `Bearer ${secret}` },
             })
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     const appUrl = APP_URLS[app_id]
     const secret = process.env.JWT_SECRET ?? ''
     if (company?.slug && appUrl && secret) {
-      const syncPath = app_id === 'fichaje' ? '/api/v1/sync/clinics' : '/api/sync/clinics'
+      const syncPath = '/api/sync/clinics'
       await fetch(`${appUrl}${syncPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
