@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Trash2, Save, RefreshCw, User, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, RefreshCw, User, ToggleLeft, ToggleRight, Building2 } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
 interface Company { id: string; name: string; slug: string; cif: string; city: string; email: string; phone: string; address: string; active: boolean; subscription_plan: string; subscription_expires_at: string | null; max_clinics: number; max_users: number }
 interface HubUser { id: string; name: string; email: string; role: string; active: boolean }
+interface Clinic { id: string; external_id: string; app_id: string; name: string; company_id: string; active: boolean }
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Superadmin', admin: 'Administrador', direccion: 'Dirección',
@@ -31,6 +32,25 @@ export default function CompanyDetailPage() {
   const [addingUser, setAddingUser] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
 
+  // Clinics state
+  const [clinics, setClinics] = useState<Clinic[]>([])
+  const [clinicsLoading, setClinicsLoading] = useState(false)
+  const [clinicsPulling, setClinicsPulling] = useState(false)
+  const [newClinic, setNewClinic] = useState({ name: '', app_id: 'clinicpnl' })
+  const [addingClinic, setAddingClinic] = useState(false)
+  const [showAddClinic, setShowAddClinic] = useState(false)
+
+  async function loadClinics(pull = false) {
+    setClinicsLoading(!pull); if (pull) setClinicsPulling(true)
+    try {
+      const qs = pull ? `?company_id=${id}&pull=1` : `?company_id=${id}`
+      const r = await fetch(`/api/admin/clinics${qs}`)
+      const d = await r.json()
+      if (Array.isArray(d)) setClinics(d)
+    } catch { /* non-fatal */ }
+    finally { setClinicsLoading(false); setClinicsPulling(false) }
+  }
+
   useEffect(() => {
     fetch(`/api/admin/companies/${id}`)
       .then((r) => r.json())
@@ -39,7 +59,33 @@ export default function CompanyDetailPage() {
       .then((r) => r.json())
       .then((d) => Array.isArray(d) ? setUsers(d.filter((u: HubUser) => true)) : null)
       .catch(() => null)
+    loadClinics(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  async function addClinic() {
+    if (!newClinic.name.trim() || !newClinic.app_id) return
+    setAddingClinic(true); setError('')
+    try {
+      const res = await fetch('/api/admin/clinics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_id: id, app_id: newClinic.app_id, name: newClinic.name.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error al crear clínica'); return }
+      setClinics((c) => [...c, data])
+      setNewClinic({ name: '', app_id: newClinic.app_id })
+      setShowAddClinic(false)
+      setSuccess('Clínica creada'); setTimeout(() => setSuccess(''), 2500)
+    } finally { setAddingClinic(false) }
+  }
+
+  async function removeClinic(clinicId: string) {
+    if (!confirm('¿Eliminar esta clínica del Hub? (No se borra en la sub-app)')) return
+    const res = await fetch(`/api/admin/clinics/${clinicId}`, { method: 'DELETE' })
+    if (res.ok) setClinics((c) => c.filter((x) => x.id !== clinicId))
+  }
 
   async function saveCompany() {
     setSaving(true); setError(''); setSuccess('')
@@ -239,6 +285,107 @@ export default function CompanyDetailPage() {
             )
           })}
         </div>
+      </div>
+
+      {/* Clinics */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-gray-500" />
+            <h3 className="text-sm font-semibold text-gray-800">Clínicas ({clinics.length})</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => loadClinics(true)} disabled={clinicsPulling}
+              className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60">
+              <RefreshCw className={`w-3.5 h-3.5 ${clinicsPulling ? 'animate-spin' : ''}`} />
+              {clinicsPulling ? 'Sincronizando…' : 'Pull desde apps'}
+            </button>
+            <button onClick={() => setShowAddClinic(!showAddClinic)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-colors">
+              <Plus className="w-3.5 h-3.5" />
+              Nueva clínica
+            </button>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-400 mb-3">
+          Las clínicas creadas aquí se propagan a la sub-aplicación seleccionada. El pull importa las existentes desde cada app.
+        </p>
+
+        {showAddClinic && (
+          <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Nueva clínica</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input value={newClinic.name}
+                onChange={(e) => setNewClinic((c) => ({ ...c, name: e.target.value }))}
+                placeholder="Nombre de la clínica"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 sm:col-span-2" />
+              <select value={newClinic.app_id}
+                onChange={(e) => setNewClinic((c) => ({ ...c, app_id: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
+                {APPS.filter((a) => appIds.includes(a.id)).map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+                {APPS.filter((a) => appIds.includes(a.id)).length === 0 && (
+                  <option value="">— Habilita alguna app primero —</option>
+                )}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={addClinic} disabled={addingClinic || !newClinic.name.trim() || !newClinic.app_id}
+                className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60">
+                {addingClinic ? 'Creando…' : 'Crear clínica'}
+              </button>
+              <button onClick={() => setShowAddClinic(false)}
+                className="px-4 py-2 border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {clinicsLoading ? (
+          <div className="py-8 text-center text-gray-400 text-sm">Cargando clínicas…</div>
+        ) : clinics.length === 0 ? (
+          <div className="py-8 text-center text-gray-400 text-sm">
+            Aún no hay clínicas. Usa <span className="font-medium text-gray-500">Pull desde apps</span> para importarlas o <span className="font-medium text-gray-500">Nueva clínica</span> para crear una.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(
+              clinics.reduce<Record<string, Clinic[]>>((acc, c) => {
+                (acc[c.app_id] ??= []).push(c); return acc
+              }, {}),
+            ).map(([appId, items]) => {
+              const app = APPS.find((a) => a.id === appId)
+              return (
+                <div key={appId} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: app?.bgColor ?? '#f3f4f6' }}>
+                      <span style={{ width: 10, height: 10, background: app?.color ?? '#6b7280', borderRadius: 2, display: 'inline-block' }} />
+                    </div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{app?.name ?? appId}</p>
+                    <span className="text-[10px] text-gray-400">{items.length}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-7">
+                    {items.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{c.name}</p>
+                          <p className="text-[10px] text-gray-400 font-mono truncate">{c.external_id}</p>
+                        </div>
+                        <button onClick={() => removeClinic(c.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Users */}

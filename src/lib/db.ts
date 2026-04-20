@@ -342,6 +342,26 @@ export async function setUserClinicAccessAll(userId: string, all: boolean): Prom
   if (all) await prisma.userClinicAccess.deleteMany({ where: { user_id: userId } })
 }
 
+export async function createClinic(input: {
+  external_id: string
+  app_id: string
+  name: string
+  company_id: string
+  active?: boolean
+}): Promise<HubClinic> {
+  return prisma.clinic.create({
+    data: { ...input, active: input.active ?? true },
+  })
+}
+
+export async function deleteClinic(id: string): Promise<void> {
+  await prisma.clinic.delete({ where: { id } })
+}
+
+export async function updateClinic(id: string, data: { name?: string; active?: boolean }): Promise<HubClinic> {
+  return prisma.clinic.update({ where: { id }, data })
+}
+
 // ─── Sync Logs ────────────────────────────────────────────────────────────────
 
 export async function createSyncLog(input: {
