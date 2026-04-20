@@ -1,6 +1,6 @@
 import {
   Activity, Phone, Stethoscope, UserCheck, Clock, Receipt,
-  LayoutGrid, Building2, BarChart3, MessageSquare, ArrowUpRight, Lock,
+  LayoutGrid, Building2, BarChart3, MessageSquare, RefreshCcw, Plug, ArrowUpRight, Lock,
 } from 'lucide-react'
 import type { AppDef } from '@/lib/apps'
 
@@ -15,6 +15,8 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
   Building2,
   BarChart3,
   MessageSquare,
+  RefreshCcw,
+  Plug,
 }
 
 interface AppCardProps {
@@ -89,9 +91,12 @@ export default function AppCard({ app, locked = false }: AppCardProps) {
     )
   }
 
+  // Internal Hub paths (e.g. /admin/integrations) bypass the SSO launcher.
+  const href = app.internal ? app.url : `/api/auth/launch?appId=${app.id}`
+
   return (
     <a
-      href={`/api/auth/launch?appId=${app.id}`}
+      href={href}
       className="group bg-white rounded-xl border border-gray-100 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col gap-3 cursor-pointer"
     >
       {cardContent}

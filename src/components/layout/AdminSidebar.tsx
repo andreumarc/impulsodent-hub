@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
-  LayoutDashboard, Building2, Users, LayoutGrid, RefreshCw,
+  LayoutDashboard, Building2, Users, LayoutGrid, RefreshCw, Plug,
   ChevronLeft, ChevronRight, ArrowLeft,
 } from 'lucide-react'
 import { BrandLogo } from '@/components/common/BrandLogo'
@@ -31,6 +31,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/admin/apps', label: 'Registros', icon: LayoutGrid },
       { href: '/admin/sync', label: 'Sincronización', icon: RefreshCw },
+      { href: '/admin/integrations', label: 'Integraciones', icon: Plug },
     ],
   },
 ]

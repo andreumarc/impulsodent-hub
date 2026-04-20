@@ -11,6 +11,10 @@ export interface AppDef {
   status: AppStatus
   category: string
   badge?: string
+  /** If true, only users with role 'admin' or 'superadmin' see this card. */
+  adminOnly?: boolean
+  /** If true, treat url as an internal Hub path (skip /api/auth/launch). */
+  internal?: boolean
 }
 
 export const APPS: AppDef[] = [
@@ -134,6 +138,19 @@ export const APPS: AppDef[] = [
     url: process.env.NEXT_PUBLIC_URL_NEXORA || '#',
     status: 'active',
     category: 'Comunicación',
+  },
+  {
+    id: 'integrations',
+    name: 'Integraciones',
+    description: 'Gestiona conectores, claves API y sincronización entre Hub y sub-aplicativos. Sólo administradores.',
+    icon: 'Plug',
+    color: '#0d9488',
+    bgColor: '#ccfbf1',
+    url: '/admin/integrations',
+    status: 'active',
+    category: 'Administración',
+    adminOnly: true,
+    internal: true,
   },
 ]
 

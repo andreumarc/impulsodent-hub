@@ -23,7 +23,11 @@ export default function LauncherPage() {
       .catch(() => setAccessibleApps(new Set()))
   }, [])
 
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+
   const filtered = APPS.filter((app) => {
+    // Admin-only cards (e.g. Integraciones) are hidden from regular users
+    if (app.adminOnly && !isAdmin) return false
     const matchCat = selectedCategory === 'Todos' || app.category === selectedCategory
     const matchQ =
       !query ||
@@ -82,6 +86,8 @@ export default function LauncherPage() {
           {filtered.map((app) => {
             const locked =
               accessibleApps !== null &&
+              !app.internal &&
+              !app.adminOnly &&
               app.status !== 'coming_soon' &&
               app.url !== '#' &&
               !accessibleApps.has(app.id)
