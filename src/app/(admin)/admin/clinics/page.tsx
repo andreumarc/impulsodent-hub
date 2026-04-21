@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search, Stethoscope, Trash2, RefreshCw, Building2, ChevronDown, X } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Building2, ChevronDown, X, Stethoscope } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
 interface Clinic {
@@ -22,10 +22,8 @@ interface Company {
   appIds: string[]
 }
 
-// Hub-internal apps aren't sync targets
 const SYNCABLE_APPS = APPS.filter((a) => !a.internal)
 
-// Group clinic rows (one per app) by company + clinic name
 interface ClinicGroup {
   key: string
   company_id: string
@@ -62,6 +60,8 @@ export default function ClinicsPage() {
   const [companyFilter, setCompanyFilter] = useState<string>('all')
   const [appFilter, setAppFilter] = useState<string>('all')
   const [pulling, setPulling] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   // Modal state
   const [openNew, setOpenNew] = useState(false)
@@ -182,36 +182,57 @@ export default function ClinicsPage() {
     }
   }
 
-  async function handleDelete(row_id: string, name: string) {
-    if (!confirm(`¿Eliminar la clínica "${name}" de este aplicativo? También se desactivará en el sub-aplicativo.`)) return
+  async function handleDeleteRow(row_id: string, name: string) {
+    if (!confirm(`¿Eliminar "${name}" de este aplicativo?`)) return
     const r = await fetch(`/api/admin/clinics/${row_id}`, { method: 'DELETE' })
     if (r.ok) setClinics((prev) => prev.filter((x) => x.id !== row_id))
+  }
+
+  async function handleDeleteGroup(g: ClinicGroup) {
+    if (!confirm(`¿Eliminar la clínica "${g.name}" de todos los aplicativos? Esta acción no se puede deshacer.`)) return
+    await Promise.all(g.apps.map((a) => fetch(`/api/admin/clinics/${a.row_id}`, { method: 'DELETE' })))
+    setClinics((prev) => prev.filter((x) => !g.apps.some((a) => a.row_id === x.id)))
+    setSelected((prev) => { const s = new Set(prev); s.delete(g.key); return s })
+  }
+
+  async function handleBulkDelete() {
+    const toDelete = filtered.filter((g) => selected.has(g.key))
+    if (!confirm(`¿Eliminar ${toDelete.length} clínica${toDelete.length !== 1 ? 's' : ''} de todos los aplicativos? Esta acción no se puede deshacer.`)) return
+    setDeleting(true)
+    try {
+      const allRowIds = toDelete.flatMap((g) => g.apps.map((a) => a.row_id))
+      await Promise.all(allRowIds.map((id) => fetch(`/api/admin/clinics/${id}`, { method: 'DELETE' })))
+      const deletedKeys = new Set(toDelete.map((g) => g.key))
+      const deletedRowIds = new Set(allRowIds)
+      setClinics((prev) => prev.filter((x) => !deletedRowIds.has(x.id)))
+      setSelected((prev) => { const s = new Set(prev); for (const k of deletedKeys) s.delete(k); return s })
+    } finally { setDeleting(false) }
+  }
+
+  function toggleSelect(key: string) {
+    setSelected((prev) => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s })
+  }
+
+  function toggleAll() {
+    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((g) => g.key)))
   }
 
   return (
     <div className="animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <div className="flex items-start gap-3">
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: '#e6eef7' }}
-          >
-            <Stethoscope style={{ width: 22, height: 22, color: '#003A70' }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Clínicas</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {groups.length} clínica{groups.length !== 1 ? 's' : ''} registrada{groups.length !== 1 ? 's' : ''} · {clinics.length} presencia{clinics.length !== 1 ? 's' : ''} en sub-aplicativos
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Clínicas</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {groups.length} clínica{groups.length !== 1 ? 's' : ''} registrada{groups.length !== 1 ? 's' : ''} · {clinics.length} presencia{clinics.length !== 1 ? 's' : ''} en sub-aplicativos
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handlePull}
             disabled={pulling || companyFilter === 'all'}
             className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
-            title={companyFilter === 'all' ? 'Selecciona una empresa para sincronizar sus clínicas' : 'Traer clínicas desde los sub-aplicativos'}
+            title={companyFilter === 'all' ? 'Selecciona una empresa para sincronizar' : 'Traer clínicas desde sub-aplicativos'}
           >
             <RefreshCw className={`w-4 h-4 ${pulling ? 'animate-spin' : ''}`} />
             {pulling ? 'Sincronizando…' : 'Pull desde apps'}
@@ -226,15 +247,14 @@ export default function ClinicsPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-5">
-        <div className="relative flex-1 min-w-[240px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Nombre, empresa…"
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
           />
         </div>
         <div className="relative">
@@ -263,6 +283,17 @@ export default function ClinicsPage() {
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
         </div>
+
+        {selected.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            disabled={deleting}
+            className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+          >
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'Eliminando…' : `Eliminar seleccionadas (${selected.size})`}
+          </button>
+        )}
       </div>
 
       {/* Empty */}
@@ -284,70 +315,99 @@ export default function ClinicsPage() {
         </div>
       )}
 
-      {/* List */}
-      <div className="space-y-3">
-        {filtered.map((g) => {
-          const company = companyById.get(g.company_id)
-          const appsInGroup = SYNCABLE_APPS.filter((a) => g.apps.some((x) => x.app_id === a.id))
-          return (
-            <div key={g.key} className="bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden">
-              <div className="flex items-start gap-4 p-5">
-                <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: '#e6eef7' }}
-                >
-                  <Stethoscope style={{ width: 20, height: 20, color: '#003A70' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="text-base font-bold text-gray-900">{g.name}</span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                      {g.external_id}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>{company?.name ?? g.company_id}</span>
-                    {company?.slug && (
-                      <span className="text-[11px] text-gray-400">· {company.slug}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-50 bg-gray-50/50 px-5 py-3">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                    Presencia en aplicativos ({appsInGroup.length})
-                  </span>
-                  <div className="flex flex-wrap gap-1.5 flex-1">
-                    {appsInGroup.map((a) => {
-                      const record = g.apps.find((x) => x.app_id === a.id)!
-                      return (
-                        <span
-                          key={a.id}
-                          className="group inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-md"
-                          style={{ background: a.bgColor, color: a.color }}
-                        >
-                          {a.name}
-                          {!record.active && <span className="opacity-60">(inactiva)</span>}
-                          <button
-                            onClick={() => handleDelete(record.row_id, g.name)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-800"
-                            title={`Eliminar de ${a.name}`}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </span>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      {/* Table */}
+      {filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60">
+                <th className="px-4 py-3 w-10">
+                  <input type="checkbox"
+                    checked={selected.size === filtered.length && filtered.length > 0}
+                    onChange={toggleAll}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-400 cursor-pointer" />
+                </th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Clínica</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Empresa</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Aplicativos</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Estado</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((g) => {
+                const company = companyById.get(g.company_id)
+                const appsInGroup = SYNCABLE_APPS.filter((a) => g.apps.some((x) => x.app_id === a.id))
+                const allActive = g.apps.every((a) => a.active)
+                return (
+                  <tr key={g.key} className={`transition-colors hover:bg-gray-50/60 ${selected.has(g.key) ? 'bg-brand-50/40' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input type="checkbox" checked={selected.has(g.key)} onChange={() => toggleSelect(g.key)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-400 cursor-pointer" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ background: '#e6eef7' }}>
+                          <Stethoscope style={{ width: 16, height: 16, color: '#003A70' }} />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold text-gray-900 block truncate">{g.name}</span>
+                          <span className="text-[11px] text-gray-400 font-mono">{g.external_id}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                        <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <span className="truncate">{company?.name ?? g.company_id}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {appsInGroup.length === 0 ? (
+                          <span className="text-xs text-gray-300 italic">—</span>
+                        ) : appsInGroup.map((a) => {
+                          const record = g.apps.find((x) => x.app_id === a.id)!
+                          return (
+                            <span key={a.id}
+                              className="group inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                              style={{ background: a.bgColor, color: a.color }}>
+                              {a.name.slice(0, 3).toUpperCase()}
+                              {!record.active && <span className="opacity-60 text-[9px]">off</span>}
+                              <button
+                                onClick={() => handleDeleteRow(record.row_id, g.name)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-red-500 hover:text-red-700"
+                                title={`Quitar de ${a.name}`}
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${allActive ? 'text-green-700 bg-green-50' : 'text-orange-600 bg-orange-50'}`}>
+                        {allActive ? 'Activa' : 'Parcial'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleDeleteGroup(g)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Eliminar</span>
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal: Nueva clínica */}
       {openNew && (
@@ -387,7 +447,7 @@ export default function ClinicsPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold text-gray-600">Aplicativos a los que dar de alta</label>
+                  <label className="block text-xs font-semibold text-gray-600">Aplicativos</label>
                   <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600 cursor-pointer">
                     <input
                       type="checkbox"
@@ -395,13 +455,13 @@ export default function ClinicsPage() {
                       onChange={(e) => setNewAllApps(e.target.checked)}
                       className="rounded border-gray-300 text-brand-500 focus:ring-brand-400"
                     />
-                    Todos los habilitados de la empresa
+                    Todos los habilitados
                   </label>
                 </div>
 
                 {!newCompanyId ? (
                   <div className="text-xs text-gray-400 italic px-3 py-3 bg-gray-50 rounded-lg">
-                    Selecciona una empresa para ver sus aplicativos habilitados.
+                    Selecciona una empresa para ver sus aplicativos.
                   </div>
                 ) : selectedCompanyApps.length === 0 ? (
                   <div className="text-xs text-orange-600 px-3 py-3 bg-orange-50 rounded-lg">
@@ -424,10 +484,8 @@ export default function ClinicsPage() {
                             onChange={() => toggleAppSelection(a.id)}
                             className="rounded border-gray-300 text-brand-500 focus:ring-brand-400"
                           />
-                          <span
-                            className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: a.bgColor, color: a.color }}
-                          >
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: a.bgColor, color: a.color }}>
                             {a.name.slice(0, 2).toUpperCase()}
                           </span>
                           <span className="text-sm text-gray-700 truncate">{a.name}</span>

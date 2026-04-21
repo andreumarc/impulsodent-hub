@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Pencil, Power, Trash2, LayoutGrid, Building2, ChevronDown, Calendar, RefreshCw } from 'lucide-react'
+import { Plus, Power, Pencil, Trash2, RefreshCw, Building2, ChevronRight, LayoutGrid } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
 const PLAN_LABELS: Record<string, string> = { free: 'Free', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise' }
 const PLAN_COLORS: Record<string, string> = {
-  free: 'bg-gray-100 text-gray-500',
-  starter: 'bg-blue-50 text-blue-600',
-  pro: 'bg-purple-50 text-purple-600',
+  free:       'bg-gray-100 text-gray-500',
+  starter:    'bg-blue-50 text-blue-600',
+  pro:        'bg-purple-50 text-purple-600',
   enterprise: 'bg-amber-50 text-amber-600',
 }
 
@@ -21,9 +21,9 @@ interface CompanyWithStats {
 }
 
 function getInitials(name: string): string {
-  const stop = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 's.a.', 's.l.', 'sl', 'sa', 'slu', 'slu.'])
+  const stop = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 's.a.', 's.l.', 'sl', 'sa'])
   const words = name.split(/\s+/).filter((w) => !stop.has(w.toLowerCase()))
-  return words.slice(0, 3).map((w) => w[0]).join('').toUpperCase()
+  return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase()
 }
 
 function formatDate(iso: string) {
@@ -32,19 +32,18 @@ function formatDate(iso: string) {
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<CompanyWithStats[]>([])
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [pulling, setPulling] = useState(false)
   const [pullSummary, setPullSummary] = useState<{ app_id: string; ok: boolean; created: number; updated: number; error?: string }[] | null>(null)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/admin/companies')
-      .then((r) => r.json())
-      .then(setCompanies)
-      .catch(() => null)
-      .finally(() => setLoading(false))
-  }, [])
+  function loadCompanies() {
+    return fetch('/api/admin/companies').then((r) => r.json()).then(setCompanies).catch(() => null)
+  }
+
+  useEffect(() => { loadCompanies().finally(() => setLoading(false)) }, [])
 
   async function handlePull() {
     setPulling(true); setPullSummary(null)
@@ -57,18 +56,17 @@ export default function CompaniesPage() {
     finally { setPulling(false) }
   }
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return companies.filter((c) => {
-      const matchSearch = !q ||
-        c.name.toLowerCase().includes(q) ||
-        (c.cif?.toLowerCase().includes(q) ?? false) ||
-        (c.city?.toLowerCase().includes(q) ?? false) ||
-        c.slug.toLowerCase().includes(q)
-      const matchStatus = statusFilter === 'all' || (statusFilter === 'active' ? c.active : !c.active)
-      return matchSearch && matchStatus
-    })
-  }, [companies, search, statusFilter])
+  const tabs = useMemo(() => [
+    { value: 'all',      label: 'Todas',    count: companies.length },
+    { value: 'active',   label: 'Activas',  count: companies.filter((c) => c.active).length },
+    { value: 'inactive', label: 'Inactivas', count: companies.filter((c) => !c.active).length },
+  ], [companies])
+
+  const filtered = useMemo(() =>
+    statusFilter === 'all' ? companies :
+    companies.filter((c) => statusFilter === 'active' ? c.active : !c.active),
+    [companies, statusFilter]
+  )
 
   async function toggleActive(c: CompanyWithStats) {
     await fetch(`/api/admin/companies/${c.id}`, {
@@ -79,9 +77,27 @@ export default function CompaniesPage() {
   }
 
   async function handleDelete(c: CompanyWithStats) {
-    if (!confirm(`¿Eliminar "${c.name}" permanentemente? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Eliminar "${c.name}"? Esta acción no se puede deshacer.`)) return
     const res = await fetch(`/api/admin/companies/${c.id}`, { method: 'DELETE' })
     if (res.ok) setCompanies((prev) => prev.filter((x) => x.id !== c.id))
+  }
+
+  async function handleBulkDelete() {
+    if (!confirm(`¿Eliminar ${selected.size} empresa${selected.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return
+    setDeleting(true)
+    try {
+      await Promise.all([...selected].map((id) => fetch(`/api/admin/companies/${id}`, { method: 'DELETE' })))
+      setCompanies((prev) => prev.filter((c) => !selected.has(c.id)))
+      setSelected(new Set())
+    } finally { setDeleting(false) }
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  function toggleAll() {
+    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((c) => c.id)))
   }
 
   return (
@@ -89,10 +105,8 @@ export default function CompaniesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {companies.length} empresa{companies.length !== 1 ? 's' : ''} registrada{companies.length !== 1 ? 's' : ''}
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Empresas</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{companies.length} empresa{companies.length !== 1 ? 's' : ''} registrada{companies.length !== 1 ? 's' : ''} en el sistema</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -131,23 +145,32 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      {/* Filter bar */}
-      <div className="flex gap-3 mb-5">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nombre, CIF, ciudad..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white" />
-        </div>
-        <div className="relative">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="appearance-none text-sm border border-gray-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400">
-            <option value="all">Todos los estados</option>
-            <option value="active">Activas</option>
-            <option value="inactive">Inactivas</option>
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-        </div>
+      {/* Status tabs */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {tabs.map((tab) => (
+          <button key={tab.value} onClick={() => setStatusFilter(tab.value)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              statusFilter === tab.value
+                ? 'bg-brand-500 text-white'
+                : 'bg-white border border-gray-200 text-gray-600 hover:border-brand-300'
+            }`}>
+            {tab.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${
+              statusFilter === tab.value ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+            }`}>{tab.count}</span>
+          </button>
+        ))}
+
+        {selected.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            disabled={deleting}
+            className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+          >
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'Eliminando…' : `Eliminar seleccionadas (${selected.size})`}
+          </button>
+        )}
       </div>
 
       {/* Empty */}
@@ -155,9 +178,9 @@ export default function CompaniesPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-card p-12 text-center">
           <Building2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm font-medium">
-            {search || statusFilter !== 'all' ? 'Sin resultados' : 'Aún no hay empresas'}
+            {statusFilter !== 'all' ? 'Sin resultados' : 'Aún no hay empresas'}
           </p>
-          {!search && statusFilter === 'all' && (
+          {statusFilter === 'all' && (
             <Link href="/admin/companies/new"
               className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-semibold rounded-lg hover:bg-brand-600 transition-colors">
               <Plus className="w-4 h-4" />
@@ -167,111 +190,112 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      {/* Cards */}
-      <div className="space-y-3">
-        {filtered.map((c) => {
-          const initials = getInitials(c.name)
-          const activeApps = APPS.filter((a) => c.appIds.includes(a.id))
-
-          return (
-            <div key={c.id} className="bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden">
-              {/* Card body */}
-              <div className="flex items-start gap-4 p-5">
-                {/* Avatar */}
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: '#e6eef7' }}>
-                  <span className="text-sm font-bold" style={{ color: '#003A70' }}>{initials}</span>
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="text-base font-bold text-gray-900">{c.name}</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 tracking-wide">
-                      {initials}
-                    </span>
-                    <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${c.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${c.active ? 'bg-green-500' : 'bg-gray-400'}`} />
-                      {c.active ? 'Activa' : 'Inactiva'}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    {[c.cif, c.city].filter(Boolean).join(' · ') || <span className="italic">Sin CIF ni ciudad</span>}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${PLAN_COLORS[c.subscription_plan] ?? PLAN_COLORS.free}`}>
-                      {PLAN_LABELS[c.subscription_plan] ?? c.subscription_plan}
-                    </span>
-                    {c.subscription_expires_at ? (() => {
-                      const exp = new Date(c.subscription_expires_at)
-                      const daysLeft = Math.ceil((exp.getTime() - Date.now()) / 86400000)
-                      const expired = daysLeft < 0
-                      const soon = !expired && daysLeft <= 30
-                      return (
-                        <span className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md ${
-                          expired ? 'bg-red-50 text-red-600' : soon ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-500'
-                        }`}>
-                          <Calendar className="w-3 h-3" />
-                          {expired ? `Caducó ${formatDate(c.subscription_expires_at)}` : `Vence ${formatDate(c.subscription_expires_at)}`}
-                        </span>
-                      )
-                    })() : (
-                      <span className="text-[11px] text-gray-400 italic">Sin caducidad</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  <Link href={`/admin/companies/${c.id}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-brand-600 hover:bg-gray-50 rounded-lg transition-colors">
-                    <Pencil className="w-3.5 h-3.5" />
-                    Editar
-                  </Link>
-                  <button onClick={() => toggleActive(c)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                      c.active ? 'text-orange-500 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'
-                    }`}>
-                    <Power className="w-3.5 h-3.5" />
-                    {c.active ? 'Desactivar' : 'Activar'}
-                  </button>
-                  <button onClick={() => handleDelete(c)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-
-              {/* Apps section */}
-              <div className="border-t border-gray-50 bg-gray-50/50 px-5 py-3 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex-shrink-0">
-                    Apps activas ({activeApps.length})
-                  </span>
-                  {activeApps.length === 0 ? (
-                    <span className="text-xs text-gray-400">Sin aplicaciones asignadas</span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {activeApps.map((a) => (
-                        <span key={a.id} className="text-[11px] font-medium px-2 py-0.5 rounded-md"
-                          style={{ background: a.bgColor, color: a.color }}>
-                          {a.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Link href={`/admin/companies/${c.id}#apps`}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors flex-shrink-0">
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  + Configurar acceso
-                </Link>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      {/* Table */}
+      {filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/60">
+                <th className="px-4 py-3 w-10">
+                  <input type="checkbox"
+                    checked={selected.size === filtered.length && filtered.length > 0}
+                    onChange={toggleAll}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-400 cursor-pointer" />
+                </th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Empresa</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">CIF / Ciudad</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Apps activas</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Estado</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Plan</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Alta</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map((c) => {
+                const initials = getInitials(c.name)
+                const activeApps = APPS.filter((a) => c.appIds.includes(a.id))
+                return (
+                  <tr key={c.id} className={`transition-colors hover:bg-gray-50/60 ${selected.has(c.id) ? 'bg-brand-50/40' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-400 cursor-pointer" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style={{ background: '#e6eef7', color: '#003A70' }}>
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold text-gray-900 block truncate">{c.name}</span>
+                          <span className="text-[11px] text-gray-400 font-mono">{c.slug}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <span className="text-sm text-gray-500">
+                        {[c.cif, c.city].filter(Boolean).join(' · ') || <span className="italic text-gray-300">—</span>}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      {activeApps.length === 0 ? (
+                        <span className="text-xs text-gray-300 italic">Sin apps</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {activeApps.slice(0, 3).map((a) => (
+                            <span key={a.id} className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                              style={{ background: a.bgColor, color: a.color }}>
+                              {a.name.slice(0, 3).toUpperCase()}
+                            </span>
+                          ))}
+                          {activeApps.length > 3 && (
+                            <span className="text-[10px] text-gray-400 font-medium">+{activeApps.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${c.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
+                        {c.active ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell">
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${PLAN_COLORS[c.subscription_plan] ?? PLAN_COLORS.free}`}>
+                        {PLAN_LABELS[c.subscription_plan] ?? c.subscription_plan}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell">
+                      <span className="text-xs text-gray-500">{formatDate(c.created_at)}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-0.5">
+                        <button onClick={() => toggleActive(c)}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            c.active ? 'text-orange-500 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'
+                          }`}>
+                          <Power className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">{c.active ? 'Desactivar' : 'Activar'}</span>
+                        </button>
+                        <button onClick={() => handleDelete(c)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Eliminar</span>
+                        </button>
+                        <Link href={`/admin/companies/${c.id}`}
+                          className="p-1.5 text-gray-400 hover:text-brand-500 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Editar empresa">
+                          <ChevronRight className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

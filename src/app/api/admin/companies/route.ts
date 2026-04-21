@@ -23,8 +23,14 @@ async function requireSuperadmin() {
   return session
 }
 
+async function requireAdmin() {
+  const session = await getSession()
+  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) return null
+  return session
+}
+
 export async function GET(req: NextRequest) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const pull = req.nextUrl.searchParams.get('pull') === '1'
   const onlyApp = req.nextUrl.searchParams.get('app_id') ?? undefined

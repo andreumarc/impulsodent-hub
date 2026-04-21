@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react'
 import { HUB_ROLES, getRoleStyle } from '@/lib/roles'
 
 const PLAN_COLORS: Record<string, string> = {
@@ -109,6 +109,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pwdUser, setPwdUser] = useState<HubUser | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   function loadUsers() {
     return fetch('/api/admin/users').then((r) => r.json()).then(setUsers).catch(() => null)
@@ -155,6 +156,16 @@ export default function UsersPage() {
 
   function toggleAll() {
     setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((u) => u.id)))
+  }
+
+  async function handleBulkDelete() {
+    if (!confirm(`¿Eliminar ${selected.size} usuario${selected.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return
+    setDeleting(true)
+    try {
+      await Promise.all([...selected].map((id) => fetch(`/api/admin/users/${id}`, { method: 'DELETE' })))
+      setUsers((prev) => prev.filter((u) => !selected.has(u.id)))
+      setSelected(new Set())
+    } finally { setDeleting(false) }
   }
 
   return (
@@ -205,7 +216,7 @@ export default function UsersPage() {
       )}
 
       {/* Role tabs */}
-      <div className="flex gap-2 mb-5 flex-wrap">
+      <div className="flex gap-2 mb-5 flex-wrap items-center">
         {tabs.map((tab) => (
           <button key={tab.value} onClick={() => setRoleFilter(tab.value)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -219,6 +230,17 @@ export default function UsersPage() {
             }`}>{tab.count}</span>
           </button>
         ))}
+
+        {selected.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            disabled={deleting}
+            className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+          >
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'Eliminando…' : `Eliminar seleccionados (${selected.size})`}
+          </button>
+        )}
       </div>
 
       {/* Empty */}
