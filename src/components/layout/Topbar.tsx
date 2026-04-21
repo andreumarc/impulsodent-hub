@@ -35,8 +35,8 @@ export default function Topbar({ user }: TopbarProps) {
 
       <div className="flex-1" />
 
-      {/* Superadmin panel link */}
-      {user.role === 'superadmin' && (
+      {/* Admin panel link (superadmin + admin) */}
+      {(user.role === 'superadmin' || user.role === 'admin') && (
         <Link
           href="/admin"
           className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"

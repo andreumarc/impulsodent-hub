@@ -4,15 +4,21 @@ import { getSession } from '@/lib/auth'
 import { getUser, updateUser, deleteUser, getUserAppRoles, setUserAppRoles, getUserClinicAccess, setUserClinicAccess, setUserClinicAccessAll } from '@/lib/db'
 import { pushUserToApps } from '@/lib/sync'
 
-async function requireSuperadmin() {
+async function requireUserAccess(id: string) {
   const session = await getSession()
-  if (!session || session.role !== 'superadmin') return null
+  if (!session) return null
+  if (session.role === 'superadmin') return session
+  if (session.role !== 'admin') return null
+  const target = await getUser(id)
+  if (!target) return null
+  if (!session.companyId || target.company_id !== session.companyId) return null
+  if (target.role === 'superadmin') return null
   return session
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
+  if (!await requireUserAccess(id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const user = await getUser(id)
   if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const [appRoles, clinics] = await Promise.all([getUserAppRoles(id), getUserClinicAccess(id)])
@@ -20,10 +26,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
+  const session = await requireUserAccess(id)
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await req.json()
   const { password, app_roles, clinic_access_all, clinic_ids, ...rest } = body
+
+  // Admin cannot escalate role to superadmin or reassign company
+  if (session.role === 'admin') {
+    if (rest.role === 'superadmin') {
+      return NextResponse.json({ error: 'No puedes asignar rol superadmin' }, { status: 403 })
+    }
+    if (rest.company_id && rest.company_id !== session.companyId) {
+      return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
+    }
+    delete rest.company_id
+  }
 
   const update: Record<string, unknown> = { ...rest }
   if (password) update.password_hash = await bcrypt.hash(password, 10)
@@ -65,8 +83,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
+  if (!await requireUserAccess(id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   await deleteUser(id)
   return NextResponse.json({ ok: true })
 }

@@ -29,12 +29,28 @@ async function requireSuperadmin() {
   return session
 }
 
-export async function GET(req: NextRequest) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+async function requireAdmin() {
+  const session = await getSession()
+  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) return null
+  return session
+}
 
-  const companyId = req.nextUrl.searchParams.get('companyId')
+export async function GET(req: NextRequest) {
+  const session = await requireAdmin()
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  let companyId = req.nextUrl.searchParams.get('companyId')
   const pull      = req.nextUrl.searchParams.get('pull') === '1'
   const onlyApp   = req.nextUrl.searchParams.get('app_id') ?? undefined
+
+  // Admin is scoped to their own company
+  if (session.role === 'admin') {
+    if (!session.companyId) return NextResponse.json([], { status: 200 })
+    if (companyId && companyId !== session.companyId) {
+      return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
+    }
+    companyId = session.companyId
+  }
 
   if (pull) {
     const secret = process.env.JWT_SECRET ?? ''
@@ -97,13 +113,27 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const session = await requireAdmin()
+  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { email, password, name, role, company_id, app_roles, subscription_plan, subscription_expires_at, max_clinics, clinic_access_all, clinic_ids } = body
+  let { company_id } = body
+  const { email, password, name, role, app_roles, subscription_plan, subscription_expires_at, max_clinics, clinic_access_all, clinic_ids } = body
 
   if (!email || !password || !name || !role) {
     return NextResponse.json({ error: 'email, password, name y role son obligatorios' }, { status: 400 })
+  }
+
+  // Admin is scoped to their own company and cannot create superadmins
+  if (session.role === 'admin') {
+    if (!session.companyId) return NextResponse.json({ error: 'Admin sin empresa asignada' }, { status: 403 })
+    if (company_id && company_id !== session.companyId) {
+      return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
+    }
+    if (role === 'superadmin') {
+      return NextResponse.json({ error: 'No puedes crear usuarios superadmin' }, { status: 403 })
+    }
+    company_id = session.companyId
   }
 
   const existing = await getUserByEmail(email)

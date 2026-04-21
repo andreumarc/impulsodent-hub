@@ -30,7 +30,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: 'GESTIÓN',
     items: [
       { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-      { href: '/admin/companies', label: 'Empresas', icon: Building2 },
+      { href: '/admin/companies', label: 'Empresas', icon: Building2, superadminOnly: true },
       { href: '/admin/clinics', label: 'Clínicas', icon: Stethoscope },
       { href: '/admin/users', label: 'Usuarios', icon: Users },
     ],
