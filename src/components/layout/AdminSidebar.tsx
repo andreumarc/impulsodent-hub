@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   LayoutDashboard, Building2, Users, LayoutGrid, RefreshCw, Plug,
-  ChevronLeft, ChevronRight, ArrowLeft, Stethoscope,
+  ChevronLeft, ChevronRight, ArrowLeft, Stethoscope, MessageCircle,
 } from 'lucide-react'
 import { BrandLogo } from '@/components/common/BrandLogo'
 
@@ -41,6 +41,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: '/admin/apps', label: 'Registros', icon: LayoutGrid, superadminOnly: true },
       { href: '/admin/sync', label: 'Sincronización', icon: RefreshCw, superadminOnly: true },
       { href: '/admin/integrations', label: 'Integraciones', icon: Plug, superadminOnly: true },
+      { href: '/admin/whatsapp', label: 'WhatsApp', icon: MessageCircle, superadminOnly: true },
     ],
   },
 ]
