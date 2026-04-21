@@ -36,7 +36,7 @@ export default function CompanyDetailPage() {
   const [clinics, setClinics] = useState<Clinic[]>([])
   const [clinicsLoading, setClinicsLoading] = useState(false)
   const [clinicsPulling, setClinicsPulling] = useState(false)
-  const [newClinic, setNewClinic] = useState({ name: '', app_id: 'clinicpnl' })
+  const [newClinic, setNewClinic] = useState({ name: '' })
   const [addingClinic, setAddingClinic] = useState(false)
   const [showAddClinic, setShowAddClinic] = useState(false)
 
@@ -64,20 +64,22 @@ export default function CompanyDetailPage() {
   }, [id])
 
   async function addClinic() {
-    if (!newClinic.name.trim() || !newClinic.app_id) return
+    if (!newClinic.name.trim()) return
     setAddingClinic(true); setError('')
     try {
       const res = await fetch('/api/admin/clinics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ company_id: id, app_id: newClinic.app_id, name: newClinic.name.trim() }),
+        body: JSON.stringify({ company_id: id, name: newClinic.name.trim() }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al crear clínica'); return }
-      setClinics((c) => [...c, data])
-      setNewClinic({ name: '', app_id: newClinic.app_id })
+      // After create, refresh the full list — backend fans out to all enabled apps
+      await loadClinics(false)
+      setNewClinic({ name: '' })
       setShowAddClinic(false)
-      setSuccess('Clínica creada'); setTimeout(() => setSuccess(''), 2500)
+      setSuccess('Clínica creada y propagada a las apps activas')
+      setTimeout(() => setSuccess(''), 2500)
     } finally { setAddingClinic(false) }
   }
 
@@ -309,30 +311,24 @@ export default function CompanyDetailPage() {
         </div>
 
         <p className="text-xs text-gray-400 mb-3">
-          Las clínicas creadas aquí se propagan a la sub-aplicación seleccionada. El pull importa las existentes desde cada app.
+          Las clínicas pertenecen a la empresa. Al crearlas, se propagan automáticamente a todas las aplicaciones activas
+          de la empresa. El pull importa las existentes desde cada app.
         </p>
 
         {showAddClinic && (
           <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Nueva clínica</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input value={newClinic.name}
-                onChange={(e) => setNewClinic((c) => ({ ...c, name: e.target.value }))}
-                placeholder="Nombre de la clínica"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 sm:col-span-2" />
-              <select value={newClinic.app_id}
-                onChange={(e) => setNewClinic((c) => ({ ...c, app_id: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
-                {APPS.filter((a) => appIds.includes(a.id)).map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-                {APPS.filter((a) => appIds.includes(a.id)).length === 0 && (
-                  <option value="">— Habilita alguna app primero —</option>
-                )}
-              </select>
-            </div>
+            {appIds.length === 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Esta empresa no tiene ninguna aplicación habilitada. Actívalas arriba antes de crear clínicas.
+              </p>
+            )}
+            <input value={newClinic.name}
+              onChange={(e) => setNewClinic((c) => ({ ...c, name: e.target.value }))}
+              placeholder="Nombre de la clínica"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400" />
             <div className="flex gap-2">
-              <button onClick={addClinic} disabled={addingClinic || !newClinic.name.trim() || !newClinic.app_id}
+              <button onClick={addClinic} disabled={addingClinic || !newClinic.name.trim() || appIds.length === 0}
                 className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60">
                 {addingClinic ? 'Creando…' : 'Crear clínica'}
               </button>

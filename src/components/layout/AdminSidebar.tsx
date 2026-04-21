@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   LayoutDashboard, Building2, Users, LayoutGrid, RefreshCw, Plug,
-  ChevronLeft, ChevronRight, ArrowLeft,
+  ChevronLeft, ChevronRight, ArrowLeft, Stethoscope,
 } from 'lucide-react'
 import { BrandLogo } from '@/components/common/BrandLogo'
 
@@ -17,21 +17,30 @@ const HOVER_BG      = 'rgba(255,255,255,0.07)'
 const BORDER_COLOR  = 'rgba(255,255,255,0.08)'
 const LOGO_ICON_BG  = '#0d9488'
 
-const NAV_GROUPS = [
+type NavItem = {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+  exact?: boolean
+  superadminOnly?: boolean
+}
+
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: 'GESTIÓN',
     items: [
       { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-      { href: '/admin/companies', label: 'Empresas', icon: Building2 },
+      { href: '/admin/companies', label: 'Empresas', icon: Building2, superadminOnly: true },
+      { href: '/admin/clinics', label: 'Clínicas', icon: Stethoscope },
       { href: '/admin/users', label: 'Usuarios', icon: Users },
     ],
   },
   {
     title: 'APLICACIONES',
     items: [
-      { href: '/admin/apps', label: 'Registros', icon: LayoutGrid },
-      { href: '/admin/sync', label: 'Sincronización', icon: RefreshCw },
-      { href: '/admin/integrations', label: 'Integraciones', icon: Plug },
+      { href: '/admin/apps', label: 'Registros', icon: LayoutGrid, superadminOnly: true },
+      { href: '/admin/sync', label: 'Sincronización', icon: RefreshCw, superadminOnly: true },
+      { href: '/admin/integrations', label: 'Integraciones', icon: Plug, superadminOnly: true },
     ],
   },
 ]
@@ -39,9 +48,14 @@ const NAV_GROUPS = [
 interface AdminSidebarProps {
   collapsed: boolean
   onToggle: () => void
+  role?: string
 }
 
-export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps) {
+export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebarProps) {
+  const isSuperadmin = role === 'superadmin'
+  const VISIBLE_GROUPS = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((it) => isSuperadmin || !it.superadminOnly) }))
+    .filter((g) => g.items.length > 0)
   const pathname = usePathname()
   const [hoveredHref, setHoveredHref] = useState<string | null>(null)
 
@@ -88,7 +102,7 @@ export default function AdminSidebar({ collapsed, onToggle }: AdminSidebarProps)
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-5 overflow-y-auto sidebar-scroll">
-        {NAV_GROUPS.map((group) => (
+        {VISIBLE_GROUPS.map((group) => (
           <div key={group.title}>
             {!collapsed && (
               <p

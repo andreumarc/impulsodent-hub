@@ -321,6 +321,21 @@ export async function listClinicsByCompany(companyId: string): Promise<HubClinic
   })
 }
 
+export async function listAllClinics(filters?: {
+  company_id?: string
+  app_id?: string
+  active_only?: boolean
+}): Promise<HubClinic[]> {
+  return prisma.clinic.findMany({
+    where: {
+      ...(filters?.company_id ? { company_id: filters.company_id } : {}),
+      ...(filters?.app_id ? { app_id: filters.app_id } : {}),
+      ...(filters?.active_only === false ? {} : { active: true }),
+    },
+    orderBy: [{ company_id: 'asc' }, { name: 'asc' }, { app_id: 'asc' }],
+  })
+}
+
 export async function getUserClinicAccess(userId: string): Promise<HubClinic[]> {
   const rows = await prisma.userClinicAccess.findMany({
     where: { user_id: userId },
