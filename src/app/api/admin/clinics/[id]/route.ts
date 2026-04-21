@@ -36,10 +36,17 @@ async function pushToSubApp(clinic: { app_id: string; external_id: string; name:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
-  if (!session || session.role !== 'superadmin') {
+  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
+  // Admin can only update clinics belonging to their own company
+  if (session.role === 'admin' && session.companyId) {
+    const existing = await prisma.clinic.findUnique({ where: { id } })
+    if (!existing || existing.company_id !== session.companyId) {
+      return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
+    }
+  }
   const body = await req.json().catch(() => ({})) as { name?: string; active?: boolean }
   const clinic = await updateClinic(id, body)
   // Propagate to sub-app
@@ -49,12 +56,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
-  if (!session || session.role !== 'superadmin') {
+  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
   // Read before delete, then notify sub-app to deactivate
   const existing = await prisma.clinic.findUnique({ where: { id } })
+  // Admin can only delete clinics belonging to their own company
+  if (session.role === 'admin' && session.companyId) {
+    if (!existing || existing.company_id !== session.companyId) {
+      return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
+    }
+  }
   if (existing) {
     await pushToSubApp({ ...existing, active: false })
   }
