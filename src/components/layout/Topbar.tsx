@@ -55,8 +55,8 @@ export default function Topbar({ user }: TopbarProps) {
       {/* Divider */}
       <div className="h-8 w-px bg-gray-200" />
 
-      {/* User */}
-      <div className="flex items-center gap-2.5">
+      {/* User — links to profile */}
+      <Link href="/admin/profile" className="flex items-center gap-2.5 rounded-lg px-1 py-1 hover:bg-gray-50 transition-colors">
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0"
           style={{ background: '#0d9488' }}
@@ -67,7 +67,7 @@ export default function Topbar({ user }: TopbarProps) {
           <p className="text-sm font-semibold text-gray-900">{user.name}</p>
           <p className="text-xs text-gray-400 mt-0.5">{ROLE_LABELS[user.role] ?? user.role}</p>
         </div>
-      </div>
+      </Link>
 
       {/* Divider */}
       <div className="h-8 w-px bg-gray-200" />

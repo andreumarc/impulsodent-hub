@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   LayoutDashboard, Building2, Users, LayoutGrid, RefreshCw, Plug,
-  ChevronLeft, ChevronRight, ArrowLeft, Stethoscope, MessageCircle,
+  ChevronLeft, ChevronRight, ArrowLeft, Stethoscope, MessageCircle, UserCircle,
 } from 'lucide-react'
 import { BrandLogo } from '@/components/common/BrandLogo'
 
@@ -143,6 +143,29 @@ export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebar
           </div>
         ))}
       </nav>
+
+      {/* Profile link */}
+      <div style={{ borderTop: `1px solid ${BORDER_COLOR}` }}>
+        <Link
+          href="/admin/profile"
+          className="flex items-center gap-3 mx-2 my-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150"
+          style={{
+            color: INACTIVE_TEXT,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = HOVER_BG
+            e.currentTarget.style.color = '#fff'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = INACTIVE_TEXT
+          }}
+          title={collapsed ? 'Mi perfil' : undefined}
+        >
+          <UserCircle style={{ width: 18, height: 18, flexShrink: 0 }} />
+          {!collapsed && <span className="truncate flex-1">Mi perfil</span>}
+        </Link>
+      </div>
 
       {/* Collapse toggle */}
       <div style={{ borderTop: `1px solid ${BORDER_COLOR}` }}>
