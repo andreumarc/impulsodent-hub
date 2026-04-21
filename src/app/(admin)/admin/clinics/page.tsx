@@ -56,9 +56,9 @@ export default function ClinicsPage() {
   const [clinics, setClinics] = useState<Clinic[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [companyFilter, setCompanyFilter] = useState<string>('all')
   const [appFilter, setAppFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [pulling, setPulling] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
@@ -105,19 +105,26 @@ export default function ClinicsPage() {
 
   const groups = useMemo(() => groupClinics(clinics), [clinics])
 
+  // Tabs: status (all / active / inactive)
+  const tabs = useMemo(() => {
+    const active   = groups.filter((g) => g.apps.every((a) => a.active)).length
+    const inactive = groups.filter((g) => !g.apps.every((a) => a.active)).length
+    return [
+      { value: 'all',      label: 'Todas',    count: groups.length },
+      { value: 'active',   label: 'Activas',  count: active },
+      { value: 'inactive', label: 'Inactivas', count: inactive },
+    ]
+  }, [groups])
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
     return groups.filter((g) => {
       if (companyFilter !== 'all' && g.company_id !== companyFilter) return false
-      if (appFilter !== 'all' && !g.apps.some((a) => a.app_id === appFilter)) return false
-      if (q) {
-        const company = companyById.get(g.company_id)
-        const hay = `${g.name} ${company?.name ?? ''} ${company?.slug ?? ''}`.toLowerCase()
-        if (!hay.includes(q)) return false
-      }
+      if (appFilter    !== 'all' && !g.apps.some((a) => a.app_id === appFilter)) return false
+      if (statusFilter === 'active'   && !g.apps.every((a) => a.active)) return false
+      if (statusFilter === 'inactive' &&  g.apps.every((a) => a.active)) return false
       return true
     })
-  }, [groups, search, companyFilter, appFilter, companyById])
+  }, [groups, companyFilter, appFilter, statusFilter])
 
   async function handlePull() {
     if (companyFilter === 'all') {
@@ -151,8 +158,7 @@ export default function ClinicsPage() {
     if (!newCompanyId) { setFormError('Selecciona una empresa'); return }
     if (!newName.trim()) { setFormError('Introduce un nombre'); return }
     if (!newAllApps && newAppIds.length === 0) {
-      setFormError('Selecciona al menos un aplicativo o marca "Todos"')
-      return
+      setFormError('Selecciona al menos un aplicativo o marca "Todos"'); return
     }
     setSubmitting(true)
     try {
@@ -177,9 +183,7 @@ export default function ClinicsPage() {
       await loadClinics()
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Error desconocido')
-    } finally {
-      setSubmitting(false)
-    }
+    } finally { setSubmitting(false) }
   }
 
   async function handleDeleteRow(row_id: string, name: string) {
@@ -189,7 +193,7 @@ export default function ClinicsPage() {
   }
 
   async function handleDeleteGroup(g: ClinicGroup) {
-    if (!confirm(`¿Eliminar la clínica "${g.name}" de todos los aplicativos? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Eliminar "${g.name}" de todos los aplicativos?`)) return
     await Promise.all(g.apps.map((a) => fetch(`/api/admin/clinics/${a.row_id}`, { method: 'DELETE' })))
     setClinics((prev) => prev.filter((x) => !g.apps.some((a) => a.row_id === x.id)))
     setSelected((prev) => { const s = new Set(prev); s.delete(g.key); return s })
@@ -197,13 +201,13 @@ export default function ClinicsPage() {
 
   async function handleBulkDelete() {
     const toDelete = filtered.filter((g) => selected.has(g.key))
-    if (!confirm(`¿Eliminar ${toDelete.length} clínica${toDelete.length !== 1 ? 's' : ''} de todos los aplicativos? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Eliminar ${toDelete.length} clínica${toDelete.length !== 1 ? 's' : ''} de todos los aplicativos?`)) return
     setDeleting(true)
     try {
       const allRowIds = toDelete.flatMap((g) => g.apps.map((a) => a.row_id))
       await Promise.all(allRowIds.map((id) => fetch(`/api/admin/clinics/${id}`, { method: 'DELETE' })))
-      const deletedKeys = new Set(toDelete.map((g) => g.key))
       const deletedRowIds = new Set(allRowIds)
+      const deletedKeys   = new Set(toDelete.map((g) => g.key))
       setClinics((prev) => prev.filter((x) => !deletedRowIds.has(x.id)))
       setSelected((prev) => { const s = new Set(prev); for (const k of deletedKeys) s.delete(k); return s })
     } finally { setDeleting(false) }
@@ -219,20 +223,20 @@ export default function ClinicsPage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Header */}
+      {/* Header — identical structure to Empresas / Usuarios */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Clínicas</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {groups.length} clínica{groups.length !== 1 ? 's' : ''} registrada{groups.length !== 1 ? 's' : ''} · {clinics.length} presencia{clinics.length !== 1 ? 's' : ''} en sub-aplicativos
+            {groups.length} clínica{groups.length !== 1 ? 's' : ''} registrada{groups.length !== 1 ? 's' : ''} en el sistema
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handlePull}
             disabled={pulling || companyFilter === 'all'}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
             title={companyFilter === 'all' ? 'Selecciona una empresa para sincronizar' : 'Traer clínicas desde sub-aplicativos'}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
           >
             <RefreshCw className={`w-4 h-4 ${pulling ? 'animate-spin' : ''}`} />
             {pulling ? 'Sincronizando…' : 'Pull desde apps'}
@@ -247,42 +251,21 @@ export default function ClinicsPage() {
         </div>
       </div>
 
-      {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nombre, empresa…"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
-          />
-        </div>
-        <div className="relative">
-          <select
-            value={companyFilter}
-            onChange={(e) => setCompanyFilter(e.target.value)}
-            className="appearance-none text-sm border border-gray-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
-          >
-            <option value="all">Todas las empresas</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-        </div>
-        <div className="relative">
-          <select
-            value={appFilter}
-            onChange={(e) => setAppFilter(e.target.value)}
-            className="appearance-none text-sm border border-gray-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
-          >
-            <option value="all">Todos los aplicativos</option>
-            {SYNCABLE_APPS.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-        </div>
+      {/* Tabs row — identical to Empresas / Usuarios */}
+      <div className="flex gap-2 mb-4 flex-wrap items-center">
+        {tabs.map((tab) => (
+          <button key={tab.value} onClick={() => setStatusFilter(tab.value)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              statusFilter === tab.value
+                ? 'bg-brand-500 text-white'
+                : 'bg-white border border-gray-200 text-gray-600 hover:border-brand-300'
+            }`}>
+            {tab.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${
+              statusFilter === tab.value ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+            }`}>{tab.count}</span>
+          </button>
+        ))}
 
         {selected.size > 0 && (
           <button
@@ -296,18 +279,44 @@ export default function ClinicsPage() {
         )}
       </div>
 
+      {/* Secondary filters (empresa + app) — compact row under tabs */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <div className="relative">
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="appearance-none text-sm border border-gray-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 text-gray-600"
+          >
+            <option value="all">Todas las empresas</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        </div>
+        <div className="relative">
+          <select
+            value={appFilter}
+            onChange={(e) => setAppFilter(e.target.value)}
+            className="appearance-none text-sm border border-gray-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 text-gray-600"
+          >
+            <option value="all">Todos los aplicativos</option>
+            {SYNCABLE_APPS.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        </div>
+      </div>
+
       {/* Empty */}
       {!loading && filtered.length === 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-card p-12 text-center">
           <Stethoscope className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm font-medium">
-            {search || companyFilter !== 'all' || appFilter !== 'all' ? 'Sin resultados' : 'Aún no hay clínicas registradas'}
+            {companyFilter !== 'all' || appFilter !== 'all' || statusFilter !== 'all'
+              ? 'Sin resultados para los filtros aplicados'
+              : 'Aún no hay clínicas registradas'}
           </p>
-          {!search && companyFilter === 'all' && appFilter === 'all' && (
-            <button
-              onClick={openNewModal}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-semibold rounded-lg hover:bg-brand-600 transition-colors"
-            >
+          {companyFilter === 'all' && appFilter === 'all' && statusFilter === 'all' && (
+            <button onClick={openNewModal}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-semibold rounded-lg hover:bg-brand-600 transition-colors">
               <Plus className="w-4 h-4" />
               Crear clínica
             </button>
@@ -315,7 +324,7 @@ export default function ClinicsPage() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Table — same structure as Empresas / Usuarios */}
       {filtered.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden">
           <table className="w-full">
@@ -336,7 +345,7 @@ export default function ClinicsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map((g) => {
-                const company = companyById.get(g.company_id)
+                const company   = companyById.get(g.company_id)
                 const appsInGroup = SYNCABLE_APPS.filter((a) => g.apps.some((x) => x.app_id === a.id))
                 const allActive = g.apps.every((a) => a.active)
                 return (
@@ -365,38 +374,38 @@ export default function ClinicsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {appsInGroup.length === 0 ? (
-                          <span className="text-xs text-gray-300 italic">—</span>
-                        ) : appsInGroup.map((a) => {
-                          const record = g.apps.find((x) => x.app_id === a.id)!
-                          return (
-                            <span key={a.id}
-                              className="group inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                              style={{ background: a.bgColor, color: a.color }}>
-                              {a.name.slice(0, 3).toUpperCase()}
-                              {!record.active && <span className="opacity-60 text-[9px]">off</span>}
-                              <button
-                                onClick={() => handleDeleteRow(record.row_id, g.name)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-red-500 hover:text-red-700"
-                                title={`Quitar de ${a.name}`}
-                              >
-                                <X className="w-2.5 h-2.5" />
-                              </button>
-                            </span>
-                          )
-                        })}
+                        {appsInGroup.length === 0
+                          ? <span className="text-xs text-gray-300 italic">—</span>
+                          : appsInGroup.map((a) => {
+                              const record = g.apps.find((x) => x.app_id === a.id)!
+                              return (
+                                <span key={a.id}
+                                  className="group inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                  style={{ background: a.bgColor, color: a.color }}>
+                                  {a.name.slice(0, 3).toUpperCase()}
+                                  {!record.active && <span className="opacity-60 text-[9px]">off</span>}
+                                  <button
+                                    onClick={() => handleDeleteRow(record.row_id, g.name)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-red-500 hover:text-red-700"
+                                    title={`Quitar de ${a.name}`}
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </span>
+                              )
+                            })}
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${allActive ? 'text-green-700 bg-green-50' : 'text-orange-600 bg-orange-50'}`}>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        allActive ? 'text-green-700 bg-green-50' : 'text-orange-600 bg-orange-50'
+                      }`}>
                         {allActive ? 'Activa' : 'Parcial'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleDeleteGroup(g)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
+                      <button onClick={() => handleDeleteGroup(g)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Eliminar</span>
                       </button>
@@ -419,71 +428,53 @@ export default function ClinicsPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Empresa</label>
-                <select
-                  value={newCompanyId}
+                <select value={newCompanyId}
                   onChange={(e) => { setNewCompanyId(e.target.value); setNewAppIds([]) }}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
-                >
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400">
                   <option value="">— Selecciona empresa —</option>
                   {companies.filter((c) => c.active).map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nombre de la clínica</label>
-                <input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                <input value={newName} onChange={(e) => setNewName(e.target.value)}
                   placeholder="Ej. Clínica Dental Centro"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                />
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400" />
               </div>
-
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-semibold text-gray-600">Aplicativos</label>
                   <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newAllApps}
+                    <input type="checkbox" checked={newAllApps}
                       onChange={(e) => setNewAllApps(e.target.checked)}
-                      className="rounded border-gray-300 text-brand-500 focus:ring-brand-400"
-                    />
+                      className="rounded border-gray-300 text-brand-500 focus:ring-brand-400" />
                     Todos los habilitados
                   </label>
                 </div>
-
                 {!newCompanyId ? (
                   <div className="text-xs text-gray-400 italic px-3 py-3 bg-gray-50 rounded-lg">
                     Selecciona una empresa para ver sus aplicativos.
                   </div>
                 ) : selectedCompanyApps.length === 0 ? (
                   <div className="text-xs text-orange-600 px-3 py-3 bg-orange-50 rounded-lg">
-                    Esta empresa no tiene aplicativos habilitados. Configúralos desde <em>Empresas → Configurar acceso</em>.
+                    Esta empresa no tiene aplicativos habilitados.
                   </div>
                 ) : (
                   <div className={`grid grid-cols-2 gap-2 ${newAllApps ? 'opacity-50 pointer-events-none' : ''}`}>
                     {selectedCompanyApps.map((a) => {
                       const checked = newAppIds.includes(a.id)
                       return (
-                        <label
-                          key={a.id}
+                        <label key={a.id}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
                             checked ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleAppSelection(a.id)}
-                            className="rounded border-gray-300 text-brand-500 focus:ring-brand-400"
-                          />
+                          }`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleAppSelection(a.id)}
+                            className="rounded border-gray-300 text-brand-500 focus:ring-brand-400" />
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                             style={{ background: a.bgColor, color: a.color }}>
                             {a.name.slice(0, 2).toUpperCase()}
@@ -495,27 +486,17 @@ export default function ClinicsPage() {
                   </div>
                 )}
               </div>
-
               {formError && (
-                <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                  {formError}
-                </div>
+                <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{formError}</div>
               )}
             </div>
-
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/50">
-              <button
-                onClick={() => setOpenNew(false)}
-                disabled={submitting}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-60"
-              >
+              <button onClick={() => setOpenNew(false)} disabled={submitting}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-60">
                 Cancelar
               </button>
-              <button
-                onClick={handleCreate}
-                disabled={submitting}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
-              >
+              <button onClick={handleCreate} disabled={submitting}
+                className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60">
                 {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {submitting ? 'Creando…' : 'Crear y sincronizar'}
               </button>
