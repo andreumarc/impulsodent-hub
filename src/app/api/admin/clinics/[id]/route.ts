@@ -14,6 +14,31 @@ const APP_URLS: Record<string, string | undefined> = {
   clinicvox:     process.env.NEXT_PUBLIC_URL_CLINICVOX,
 }
 
+async function pushDeleteToSubApp(clinic: { app_id: string; external_id: string; company_id: string }) {
+  try {
+    const company = await prisma.company.findUnique({ where: { id: clinic.company_id }, select: { slug: true } })
+    const appUrl = APP_URLS[clinic.app_id]
+    const secret = process.env.JWT_SECRET ?? ''
+    if (!company?.slug || !appUrl || !secret) return
+    // Best-effort real DELETE; sub-apps that don't expose it will 404/405 and we fall back to soft-delete upsert below.
+    const url = `${appUrl}/api/sync/clinics/${encodeURIComponent(clinic.external_id)}?company_slug=${encodeURIComponent(company.slug)}`
+    try {
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${secret}` },
+        signal: AbortSignal.timeout(6000),
+      })
+      if (!res.ok && res.status !== 404 && res.status !== 405) {
+        console.error('[sync] delete non-ok', { app_id: clinic.app_id, url, status: res.status })
+      } else {
+        console.log('[sync] delete', { app_id: clinic.app_id, url, status: res.status })
+      }
+    } catch (err) {
+      console.error('[sync] delete failed', { app_id: clinic.app_id, url, message: (err as Error).message })
+    }
+  } catch { /* non-fatal */ }
+}
+
 async function pushToSubApp(clinic: { app_id: string; external_id: string; name: string; active: boolean; company_id: string }) {
   try {
     const company = await prisma.company.findUnique({ where: { id: clinic.company_id }, select: { slug: true } })
@@ -75,17 +100,27 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
-  // Read before delete, then notify sub-app to deactivate
   const existing = await prisma.clinic.findUnique({ where: { id } })
-  // Admin can only delete clinics belonging to their own company
-  if (session.role === 'admin' && session.companyId) {
-    if (!existing || existing.company_id !== session.companyId) {
-      return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
-    }
+  if (!existing) {
+    await deleteClinic(id).catch(() => {})
+    return NextResponse.json({ ok: true })
   }
-  if (existing) {
-    await pushToSubApp({ ...existing, active: false })
+  if (session.role === 'admin' && session.companyId && existing.company_id !== session.companyId) {
+    return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
   }
-  await deleteClinic(id)
-  return NextResponse.json({ ok: true })
+
+  // A clinic is replicated across multiple app rows sharing the same external_id.
+  // Delete ALL matching rows in Hub and push deactivate to every sub-app that had it.
+  const siblings = await prisma.clinic.findMany({
+    where: { external_id: existing.external_id, company_id: existing.company_id },
+  })
+
+  // Try real DELETE first (sub-apps that support it), then soft-delete fallback
+  await Promise.allSettled(siblings.map((s) => pushDeleteToSubApp(s)))
+  await Promise.allSettled(siblings.map((s) => pushToSubApp({ ...s, active: false })))
+  await prisma.clinic.deleteMany({
+    where: { external_id: existing.external_id, company_id: existing.company_id },
+  })
+
+  return NextResponse.json({ ok: true, deleted: siblings.length })
 }

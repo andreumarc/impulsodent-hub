@@ -61,15 +61,18 @@ export async function GET(req: NextRequest) {
             if (!r.ok) return
             const data = await r.json() as { id: string; name: string; active?: boolean }[]
             await Promise.all(
-              data.map((c) =>
-                upsertClinic({
-                  external_id: c.id,
-                  app_id: appId,
-                  name: c.name,
-                  company_id,
-                  active: c.active !== false,
-                }),
-              ),
+              data
+                // Skip inactive/deleted clinics from sub-apps so deletes in Hub don't bounce back
+                .filter((c) => c.active !== false)
+                .map((c) =>
+                  upsertClinic({
+                    external_id: c.id,
+                    app_id: appId,
+                    name: c.name,
+                    company_id,
+                    active: true,
+                  }),
+                ),
             )
           } catch { /* non-fatal */ }
         }),
