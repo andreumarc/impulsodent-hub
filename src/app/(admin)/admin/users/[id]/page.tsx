@@ -57,13 +57,19 @@ export default function EditUserPage() {
         }
       }
       setAppAccess(access)
-      if (user.company_id) fetchClinics(user.company_id)
+      if (user.company_id) {
+        // Load local then auto-pull to surface clinics for legacy users
+        fetchClinics(user.company_id).then(() => fetchClinics(user.company_id, true))
+      }
     }).catch(() => setNotFound(true))
   }, [id, fetchClinics])
 
   useEffect(() => {
-    if (form.company_id) fetchClinics(form.company_id)
-    else setClinics([])
+    if (!form.company_id) { setClinics([]); return }
+    ;(async () => {
+      await fetchClinics(form.company_id)
+      await fetchClinics(form.company_id, true)
+    })()
   }, [form.company_id, fetchClinics])
 
   function updateAccess(appId: string, patch: Partial<AppAccess>) {
