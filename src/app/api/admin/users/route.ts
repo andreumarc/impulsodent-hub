@@ -189,6 +189,8 @@ export async function POST(req: NextRequest) {
     subscription_plan: user.subscription_plan,
     subscription_expires_at: user.subscription_expires_at,
     max_clinics: user.max_clinics,
+    active: user.active,
+    password, // plain password — sub-apps hash locally
   }).catch(err => console.error('[sync] failed', { app_id: 'pushUserToApps', endpoint: 'users.POST', status: err?.status, message: err?.message ?? String(err) }))
 
   return NextResponse.json(

@@ -91,6 +91,9 @@ export async function pushUserToApps(user: {
   subscription_plan?: string
   subscription_expires_at?: string | null
   max_clinics?: number
+  /** Plain password — sent only when creating the user or changing password. Sub-apps hash locally with their own bcrypt rounds. */
+  password?: string
+  active?: boolean
 }): Promise<void> {
   let token: string
   try {
@@ -145,6 +148,8 @@ export async function pushUserToApps(user: {
               subscription_plan:       user.subscription_plan,
               subscription_expires_at: user.subscription_expires_at,
               max_clinics:             user.max_clinics,
+              active:                  user.active,
+              password:                user.password,
               hub_token:               token,
             }),
           })
