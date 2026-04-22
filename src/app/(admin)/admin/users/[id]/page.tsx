@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Eye, EyeOff, ChevronDown, Trash2, Building2, RefreshCw } from 'lucide-react'
-import { APPS } from '@/lib/apps'
-import { APP_ROLES, HUB_ROLES } from '@/lib/roles'
+import { ArrowLeft, Eye, EyeOff, ChevronDown, Trash2 } from 'lucide-react'
+import { HUB_ROLES } from '@/lib/roles'
+import { AppsAndClinicsSection } from '../new/page'
 
 interface Company { id: string; name: string }
 interface HubClinic { id: string; external_id: string; app_id: string; name: string }
-type AppRoleMap = Record<string, string>
+interface AppAccess { role: string; clinic_access_all: boolean; clinic_ids: string[] }
 
 export default function EditUserPage() {
   const router = useRouter()
@@ -17,10 +17,8 @@ export default function EditUserPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [clinics, setClinics] = useState<HubClinic[]>([])
   const [loadingClinics, setLoadingClinics] = useState(false)
-  const [clinicAccessAll, setClinicAccessAll] = useState(true)
-  const [selectedClinicIds, setSelectedClinicIds] = useState<string[]>([])
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', company_id: '', active: true, subscription_plan: 'free', subscription_expires_at: '', max_clinics: 5 })
-  const [appRoles, setAppRoles] = useState<AppRoleMap>({})
+  const [appAccess, setAppAccess] = useState<Record<string, AppAccess>>({})
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -47,11 +45,18 @@ export default function EditUserPage() {
       if (user.error) { setNotFound(true); return }
       setCompanies(companiesData)
       setForm({ name: user.name, email: user.email, password: '', role: user.role, company_id: user.company_id ?? '', active: user.active, subscription_plan: user.subscription_plan ?? 'free', subscription_expires_at: user.subscription_expires_at ? String(user.subscription_expires_at).slice(0, 10) : '', max_clinics: user.max_clinics ?? 5 })
-      const roleMap: AppRoleMap = {}
-      for (const r of user.app_roles ?? []) roleMap[r.app_id] = r.role
-      setAppRoles(roleMap)
-      setClinicAccessAll(user.clinic_access_all !== false)
-      setSelectedClinicIds(user.clinic_ids ?? [])
+
+      const legacyAll = user.clinic_access_all !== false
+      const legacyIds: string[] = user.clinic_ids ?? []
+      const access: Record<string, AppAccess> = {}
+      for (const r of (user.app_roles ?? []) as Array<{ app_id: string; role: string; clinic_access_all?: boolean; clinic_ids?: string[] }>) {
+        access[r.app_id] = {
+          role: r.role,
+          clinic_access_all: typeof r.clinic_access_all === 'boolean' ? r.clinic_access_all : legacyAll,
+          clinic_ids: Array.isArray(r.clinic_ids) && r.clinic_ids.length > 0 ? r.clinic_ids : legacyIds,
+        }
+      }
+      setAppAccess(access)
       if (user.company_id) fetchClinics(user.company_id)
     }).catch(() => setNotFound(true))
   }, [id, fetchClinics])
@@ -61,23 +66,45 @@ export default function EditUserPage() {
     else setClinics([])
   }, [form.company_id, fetchClinics])
 
-  function setRole(appId: string, role: string) {
-    setAppRoles((prev) => ({ ...prev, [appId]: role }))
+  function updateAccess(appId: string, patch: Partial<AppAccess>) {
+    setAppAccess((prev) => ({
+      ...prev,
+      [appId]: { ...(prev[appId] ?? { role: '', clinic_access_all: true, clinic_ids: [] }), ...patch },
+    }))
   }
 
-  function toggleClinic(id: string) {
-    setSelectedClinicIds((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-    )
+  function setRole(appId: string, role: string) {
+    if (!role) {
+      setAppAccess((prev) => {
+        const next = { ...prev }
+        delete next[appId]
+        return next
+      })
+    } else {
+      updateAccess(appId, { role })
+    }
+  }
+
+  function toggleClinic(appId: string, clinicId: string) {
+    const current = appAccess[appId] ?? { role: '', clinic_access_all: true, clinic_ids: [] }
+    const ids = current.clinic_ids.includes(clinicId)
+      ? current.clinic_ids.filter((c) => c !== clinicId)
+      : [...current.clinic_ids, clinicId]
+    updateAccess(appId, { clinic_ids: ids })
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(''); setLoading(true)
     try {
-      const app_roles = Object.entries(appRoles)
-        .filter(([, role]) => role)
-        .map(([app_id, role]) => ({ app_id, role }))
+      const app_roles = Object.entries(appAccess)
+        .filter(([, a]) => a.role)
+        .map(([app_id, a]) => ({
+          app_id,
+          role: a.role,
+          clinic_access_all: a.clinic_access_all,
+          clinic_ids: a.clinic_access_all ? [] : a.clinic_ids,
+        }))
 
       const body: Record<string, unknown> = {
         name: form.name, email: form.email, role: form.role,
@@ -85,8 +112,6 @@ export default function EditUserPage() {
         subscription_plan: form.subscription_plan,
         subscription_expires_at: form.subscription_expires_at || null,
         max_clinics: form.max_clinics,
-        clinic_access_all: clinicAccessAll,
-        clinic_ids: clinicAccessAll ? [] : selectedClinicIds,
       }
       if (form.password) body.password = form.password
 
@@ -132,7 +157,6 @@ export default function EditUserPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Basic info */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-card p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-800">Datos del usuario</h2>
           {error && <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
@@ -196,7 +220,6 @@ export default function EditUserPage() {
           </div>
         </div>
 
-        {/* Subscription */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-card p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-800">Suscripción</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -225,106 +248,16 @@ export default function EditUserPage() {
           </div>
         </div>
 
-        {/* Clinic access */}
-        {form.company_id && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-card p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-800">Acceso a clínicas</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Selecciona las clínicas a las que tiene acceso este usuario</p>
-              </div>
-              <button type="button" onClick={() => fetchClinics(form.company_id, true)}
-                className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 transition-colors">
-                <RefreshCw className={`w-3 h-3 ${loadingClinics ? 'animate-spin' : ''}`} />
-                Sincronizar
-              </button>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <button type="button" onClick={() => setClinicAccessAll((v) => !v)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${clinicAccessAll ? 'bg-brand-500' : 'bg-gray-200'}`}>
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${clinicAccessAll ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
-              <span className="text-sm text-gray-700 font-medium">Todas las clínicas</span>
-              {clinicAccessAll && <span className="text-xs text-gray-400">(acceso completo)</span>}
-            </div>
-
-            {!clinicAccessAll && (
-              <div className="space-y-1.5">
-                {loadingClinics && (
-                  <p className="text-xs text-gray-400 text-center py-4">Cargando clínicas…</p>
-                )}
-                {!loadingClinics && clinics.length === 0 && (
-                  <div className="text-center py-6 text-gray-400">
-                    <Building2 className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-xs">No hay clínicas registradas. Pulsa Sincronizar para importarlas.</p>
-                  </div>
-                )}
-                {clinics.map((c) => {
-                  const checked = selectedClinicIds.includes(c.id)
-                  return (
-                    <label key={c.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${checked ? 'border-brand-300 bg-brand-50' : 'border-gray-100 hover:border-gray-200'}`}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleClinic(c.id)}
-                        className="w-4 h-4 rounded text-brand-500 border-gray-300 focus:ring-brand-400" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium text-gray-800">{c.name}</span>
-                        <span className="ml-2 text-[10px] uppercase font-semibold text-gray-400 tracking-wider">{c.app_id}</span>
-                      </div>
-                    </label>
-                  )
-                })}
-                {!loadingClinics && clinics.length > 0 && (
-                  <div className="flex gap-2 pt-1">
-                    <button type="button" onClick={() => setSelectedClinicIds(clinics.map((c) => c.id))}
-                      className="text-xs text-brand-500 hover:underline">Seleccionar todas</button>
-                    <span className="text-xs text-gray-300">·</span>
-                    <button type="button" onClick={() => setSelectedClinicIds([])}
-                      className="text-xs text-gray-400 hover:underline">Deseleccionar</button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Per-app roles */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-card p-6">
-          <h2 className="text-sm font-semibold text-gray-800 mb-1">Roles por aplicación</h2>
-          <p className="text-xs text-gray-400 mb-4">Deja en blanco para no dar acceso a esa aplicación</p>
-
-          <div className="space-y-2">
-            {APPS.map((app) => {
-              const selected = appRoles[app.id] || ''
-              const roleInfo = APP_ROLES.find((r) => r.value === selected)
-              return (
-                <div key={app.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
-                    style={{ background: app.bgColor, color: app.color }}>
-                    {app.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-800">{app.name}</span>
-                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{app.category}</span>
-                  </div>
-                  {roleInfo && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
-                      style={{ color: roleInfo.color, background: roleInfo.bg }}>
-                      {roleInfo.label}
-                    </span>
-                  )}
-                  <div className="relative">
-                    <select value={selected} onChange={(e) => setRole(app.id, e.target.value)}
-                      className="appearance-none text-sm border border-gray-200 rounded-lg px-3 py-1.5 pr-7 focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white min-w-[140px]">
-                      <option value="">— Sin acceso —</option>
-                      {APP_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <AppsAndClinicsSection
+          companyId={form.company_id}
+          clinics={clinics}
+          loadingClinics={loadingClinics}
+          onSync={() => fetchClinics(form.company_id, true)}
+          appAccess={appAccess}
+          setRole={setRole}
+          updateAccess={updateAccess}
+          toggleClinic={toggleClinic}
+        />
 
         <div className="flex items-center justify-between">
           <div className="flex gap-3">

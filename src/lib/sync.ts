@@ -1,27 +1,54 @@
 import { SignJWT } from 'jose'
 import { prisma } from './prisma'
 
-// Build per-app clinic_ids for a user:
-// 'ALL' if clinic_access_all=true, else array of external_ids filtered by app
+// Build per-app clinic_ids for a user from UserAppRole (per-app scope).
+// Returns 'ALL' when that app's role has clinic_access_all=true, else the
+// list of external_ids resolved from the stored hub clinic ids for that app.
 async function buildClinicIdsForApps(
   userId: string,
   appIds: string[],
 ): Promise<Record<string, string[] | 'ALL'>> {
-  const user = await prisma.hubUser.findUnique({
-    where: { id: userId },
-    select: {
-      clinic_access_all: true,
-      clinicAccess: { include: { clinic: { select: { app_id: true, external_id: true } } } },
-    },
-  })
-  if (!user) return Object.fromEntries(appIds.map((a) => [a, 'ALL' as const]))
-  if (user.clinic_access_all) return Object.fromEntries(appIds.map((a) => [a, 'ALL' as const]))
+  const [user, appRoles] = await Promise.all([
+    prisma.hubUser.findUnique({
+      where: { id: userId },
+      select: { clinic_access_all: true },
+    }),
+    prisma.userAppRole.findMany({
+      where: { user_id: userId },
+      select: { app_id: true, clinic_access_all: true, clinic_ids: true },
+    }),
+  ])
+  const globalAll = user?.clinic_access_all !== false
+  const byApp = new Map(appRoles.map((r) => [r.app_id, r]))
+
+  // Resolve hub clinic ids -> external_ids (scoped to app)
+  const allHubClinicIds = Array.from(
+    new Set(appRoles.flatMap((r) => (r.clinic_access_all ? [] : r.clinic_ids ?? []))),
+  )
+  const clinicRows = allHubClinicIds.length
+    ? await prisma.clinic.findMany({
+        where: { id: { in: allHubClinicIds } },
+        select: { id: true, app_id: true, external_id: true },
+      })
+    : []
+  const clinicById = new Map(clinicRows.map((c) => [c.id, c]))
 
   const result: Record<string, string[] | 'ALL'> = {}
   for (const appId of appIds) {
-    result[appId] = user.clinicAccess
-      .filter((ca) => ca.clinic.app_id === appId)
-      .map((ca) => ca.clinic.external_id)
+    const r = byApp.get(appId)
+    if (!r) {
+      // No app role set: fall back to global (legacy users pre-migration)
+      result[appId] = globalAll ? 'ALL' : []
+      continue
+    }
+    if (r.clinic_access_all) {
+      result[appId] = 'ALL'
+    } else {
+      result[appId] = (r.clinic_ids ?? [])
+        .map((hid) => clinicById.get(hid))
+        .filter((c): c is { id: string; app_id: string; external_id: string } => !!c && c.app_id === appId)
+        .map((c) => c.external_id)
+    }
   }
   return result
 }

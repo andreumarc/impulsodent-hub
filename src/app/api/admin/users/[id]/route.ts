@@ -22,7 +22,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const user = await getUser(id)
   if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const [appRoles, clinics] = await Promise.all([getUserAppRoles(id), getUserClinicAccess(id)])
-  return NextResponse.json({ ...user, password_hash: undefined, app_roles: appRoles, clinic_ids: clinics.map((c) => c.id) })
+  return NextResponse.json({
+    ...user,
+    password_hash: undefined,
+    app_roles: appRoles.map((r) => ({
+      app_id: r.app_id,
+      role: r.role,
+      clinic_access_all: r.clinic_access_all !== false,
+      clinic_ids: r.clinic_ids ?? [],
+    })),
+    clinic_ids: clinics.map((c) => c.id),
+  })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,16 +60,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const updated = await updateUser(id, update)
 
-    if (Array.isArray(app_roles)) {
-      await setUserAppRoles(id, app_roles.filter((r: { app_id: string; role: string }) => r.role))
-    }
+    type AppRoleInput = { app_id: string; role: string; clinic_access_all?: boolean; clinic_ids?: string[] }
+    const legacyAll = clinic_access_all !== false
+    const legacyIds = Array.isArray(clinic_ids) ? clinic_ids : []
 
-    // Update clinic access
-    if (typeof clinic_access_all === 'boolean') {
-      await setUserClinicAccessAll(id, clinic_access_all)
-    }
-    if (clinic_access_all === false && Array.isArray(clinic_ids)) {
-      await setUserClinicAccess(id, clinic_ids)
+    if (Array.isArray(app_roles)) {
+      const normalized = (app_roles as AppRoleInput[])
+        .filter((r) => r.role)
+        .map((r) => ({
+          app_id: r.app_id,
+          role: r.role,
+          clinic_access_all: typeof r.clinic_access_all === 'boolean' ? r.clinic_access_all : legacyAll,
+          clinic_ids: Array.isArray(r.clinic_ids) ? r.clinic_ids : legacyIds,
+        }))
+      await setUserAppRoles(id, normalized)
+
+      // Legacy mirror for back-compat
+      const anyRestricted = normalized.some((r) => !r.clinic_access_all)
+      await setUserClinicAccessAll(id, !anyRestricted)
+      if (anyRestricted) {
+        const union = Array.from(new Set(normalized.filter((r) => !r.clinic_access_all).flatMap((r) => r.clinic_ids)))
+        await setUserClinicAccess(id, union)
+      }
+    } else {
+      // Legacy shape only
+      if (typeof clinic_access_all === 'boolean') {
+        await setUserClinicAccessAll(id, clinic_access_all)
+      }
+      if (clinic_access_all === false && Array.isArray(clinic_ids)) {
+        await setUserClinicAccess(id, clinic_ids)
+      }
     }
 
     const [appRoles, clinics] = await Promise.all([getUserAppRoles(id), getUserClinicAccess(id)])

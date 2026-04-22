@@ -276,16 +276,36 @@ export interface UserAppRole {
   user_id: string
   app_id: string
   role: string
+  clinic_access_all?: boolean
+  clinic_ids?: string[]
 }
 
 export async function getUserAppRoles(userId: string): Promise<UserAppRole[]> {
-  return prisma.userAppRole.findMany({ where: { user_id: userId } })
+  const rows = await prisma.userAppRole.findMany({ where: { user_id: userId } })
+  return rows.map((r) => ({
+    user_id: r.user_id,
+    app_id: r.app_id,
+    role: r.role,
+    clinic_access_all: r.clinic_access_all,
+    clinic_ids: r.clinic_ids ?? [],
+  }))
 }
 
-export async function setUserAppRoles(userId: string, roles: { app_id: string; role: string }[]): Promise<void> {
+export async function setUserAppRoles(
+  userId: string,
+  roles: { app_id: string; role: string; clinic_access_all?: boolean; clinic_ids?: string[] }[],
+): Promise<void> {
   await prisma.userAppRole.deleteMany({ where: { user_id: userId } })
   if (roles.length === 0) return
-  await prisma.userAppRole.createMany({ data: roles.map((r) => ({ user_id: userId, ...r })) })
+  await prisma.userAppRole.createMany({
+    data: roles.map((r) => ({
+      user_id: userId,
+      app_id: r.app_id,
+      role: r.role,
+      clinic_access_all: r.clinic_access_all !== false,
+      clinic_ids: r.clinic_access_all === false ? (r.clinic_ids ?? []) : [],
+    })),
+  })
 }
 
 // ─── Clinics ──────────────────────────────────────────────────────────────────

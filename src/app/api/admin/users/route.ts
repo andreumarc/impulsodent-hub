@@ -153,15 +153,30 @@ export async function POST(req: NextRequest) {
     clinic_access_all: clinic_access_all !== false,
   })
 
-  // Set clinic access
-  const accessAll = clinic_access_all !== false
-  await setUserClinicAccessAll(user.id, accessAll)
-  if (!accessAll && Array.isArray(clinic_ids) && clinic_ids.length > 0) {
-    await setUserClinicAccess(user.id, clinic_ids)
-  }
+  // Normalize app_roles: new shape carries per-app clinic_access_all + clinic_ids;
+  // if body only has the legacy global fields, fan them out to every provided app.
+  type AppRoleInput = { app_id: string; role: string; clinic_access_all?: boolean; clinic_ids?: string[] }
+  const rawAppRoles: AppRoleInput[] = Array.isArray(app_roles) ? app_roles : []
+  const legacyAll = clinic_access_all !== false
+  const legacyIds = Array.isArray(clinic_ids) ? clinic_ids : []
+  const normalized = rawAppRoles
+    .filter((r) => r.role)
+    .map((r) => ({
+      app_id: r.app_id,
+      role: r.role,
+      clinic_access_all: typeof r.clinic_access_all === 'boolean' ? r.clinic_access_all : legacyAll,
+      clinic_ids: Array.isArray(r.clinic_ids) ? r.clinic_ids : legacyIds,
+    }))
 
-  if (Array.isArray(app_roles) && app_roles.length > 0) {
-    await setUserAppRoles(user.id, app_roles.filter((r: { app_id: string; role: string }) => r.role))
+  // Persist per-app roles + clinic scope
+  if (normalized.length > 0) await setUserAppRoles(user.id, normalized)
+
+  // Maintain legacy global fields for back-compat with code still reading them.
+  const anyRestricted = normalized.some((r) => !r.clinic_access_all)
+  await setUserClinicAccessAll(user.id, !anyRestricted)
+  if (anyRestricted) {
+    const union = Array.from(new Set(normalized.filter((r) => !r.clinic_access_all).flatMap((r) => r.clinic_ids)))
+    if (union.length > 0) await setUserClinicAccess(user.id, union)
   }
 
   // fire-and-forget sync to all apps
