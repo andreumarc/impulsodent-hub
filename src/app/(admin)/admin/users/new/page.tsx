@@ -43,8 +43,12 @@ export default function NewUserPage() {
   }, [])
 
   useEffect(() => {
-    if (form.company_id) fetchClinics(form.company_id)
-    else setClinics([])
+    if (!form.company_id) { setClinics([]); return }
+    // First load local, then auto-pull from sub-apps so clinics appear even on fresh companies
+    ;(async () => {
+      await fetchClinics(form.company_id)
+      await fetchClinics(form.company_id, true)
+    })()
   }, [form.company_id, fetchClinics])
 
   function updateAccess(appId: string, patch: Partial<AppAccess>) {
@@ -258,7 +262,13 @@ export function AppsAndClinicsSection(props: {
           </button>
         )}
       </div>
-      <p className="text-xs text-gray-400 mb-4">Elige un rol por aplicación. Al activar una aplicación podrás limitar las clínicas dentro de ella.</p>
+      <p className="text-xs text-gray-400 mb-4">Elige un rol por aplicación. Al activar una aplicación podrás limitar las clínicas dentro de ella (desactiva «Todas las clínicas» para seleccionar manualmente).</p>
+
+      {companyId && !loadingClinics && clinics.length === 0 && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+          Esta empresa aún no tiene clínicas registradas en ningún aplicativo. Pulsa «Sincronizar clínicas» o crea clínicas desde <Link href="/admin/clinicas" className="underline font-semibold">/admin/clinicas</Link>.
+        </div>
+      )}
 
       <div className="space-y-2">
         {APPS.filter((a) => !a.internal).map((app) => {
@@ -279,6 +289,13 @@ export function AppsAndClinicsSection(props: {
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-gray-800">{app.name}</span>
                   <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{app.category}</span>
+                  {companyId && (
+                    <span className="ml-2 text-[10px] text-gray-400">
+                      {appClinics.length > 0
+                        ? `${appClinics.length} clínica${appClinics.length === 1 ? '' : 's'}`
+                        : loadingClinics ? 'cargando…' : 'sin clínicas'}
+                    </span>
+                  )}
                 </div>
                 {roleInfo && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
