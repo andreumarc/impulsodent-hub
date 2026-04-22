@@ -5,11 +5,10 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Eye, EyeOff, ChevronDown, Trash2 } from 'lucide-react'
 import { HUB_ROLES } from '@/lib/roles'
-import { AppsAndClinicsSection } from '../new/page'
+import { ClinicsSection, AppsSection } from '../new/page'
 
 interface Company { id: string; name: string }
 interface HubClinic { id: string; external_id: string; app_id: string; name: string }
-interface AppAccess { role: string; clinic_access_all: boolean; clinic_ids: string[] }
 
 export default function EditUserPage() {
   const router = useRouter()
@@ -18,20 +17,24 @@ export default function EditUserPage() {
   const [clinics, setClinics] = useState<HubClinic[]>([])
   const [loadingClinics, setLoadingClinics] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', company_id: '', active: true, subscription_plan: 'free', subscription_expires_at: '', max_clinics: 5 })
-  const [appAccess, setAppAccess] = useState<Record<string, AppAccess>>({})
+  const [appRoles, setAppRoles] = useState<Record<string, string>>({})
+  const [clinicAccessAll, setClinicAccessAll] = useState(true)
+  const [selectedExternalIds, setSelectedExternalIds] = useState<string[]>([])
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
-  const fetchClinics = useCallback(async (company_id: string, pull = false) => {
-    if (!company_id) { setClinics([]); return }
+  const fetchClinics = useCallback(async (company_id: string, pull = false): Promise<HubClinic[]> => {
+    if (!company_id) { setClinics([]); return [] }
     setLoadingClinics(true)
     try {
       const url = `/api/admin/clinics?company_id=${company_id}${pull ? '&pull=1' : ''}`
       const data = await fetch(url).then((r) => r.json())
-      setClinics(Array.isArray(data) ? data : [])
+      const list = Array.isArray(data) ? data : []
+      setClinics(list)
+      return list
     } finally {
       setLoadingClinics(false)
     }
@@ -41,25 +44,33 @@ export default function EditUserPage() {
     Promise.all([
       fetch('/api/admin/companies').then((r) => r.json()),
       fetch(`/api/admin/users/${id}`).then((r) => r.json()),
-    ]).then(([companiesData, user]) => {
+    ]).then(async ([companiesData, user]) => {
       if (user.error) { setNotFound(true); return }
       setCompanies(companiesData)
       setForm({ name: user.name, email: user.email, password: '', role: user.role, company_id: user.company_id ?? '', active: user.active, subscription_plan: user.subscription_plan ?? 'free', subscription_expires_at: user.subscription_expires_at ? String(user.subscription_expires_at).slice(0, 10) : '', max_clinics: user.max_clinics ?? 5 })
 
-      const legacyAll = user.clinic_access_all !== false
-      const legacyIds: string[] = user.clinic_ids ?? []
-      const access: Record<string, AppAccess> = {}
-      for (const r of (user.app_roles ?? []) as Array<{ app_id: string; role: string; clinic_access_all?: boolean; clinic_ids?: string[] }>) {
-        access[r.app_id] = {
-          role: r.role,
-          clinic_access_all: typeof r.clinic_access_all === 'boolean' ? r.clinic_access_all : legacyAll,
-          clinic_ids: Array.isArray(r.clinic_ids) && r.clinic_ids.length > 0 ? r.clinic_ids : legacyIds,
-        }
+      // Roles
+      const roles: Record<string, string> = {}
+      for (const r of (user.app_roles ?? []) as Array<{ app_id: string; role: string }>) {
+        roles[r.app_id] = r.role
       }
-      setAppAccess(access)
+      setAppRoles(roles)
+
+      // Global clinic access
+      setClinicAccessAll(user.clinic_access_all !== false)
+
       if (user.company_id) {
-        // Load local then auto-pull to surface clinics for legacy users
-        fetchClinics(user.company_id).then(() => fetchClinics(user.company_id, true))
+        const list = await fetchClinics(user.company_id)
+        // Resolve hub clinic_ids → unique external_ids
+        const legacyHubIds: string[] = user.clinic_ids ?? []
+        const appRoleHubIds: string[] = ((user.app_roles ?? []) as Array<{ clinic_ids?: string[] }>)
+          .flatMap((r) => r.clinic_ids ?? [])
+        const allHubIds = new Set([...legacyHubIds, ...appRoleHubIds])
+        const extIds = new Set<string>()
+        for (const c of list) if (allHubIds.has(c.id)) extIds.add(c.external_id)
+        setSelectedExternalIds(Array.from(extIds))
+        // Auto-pull in background
+        fetchClinics(user.company_id, true)
       }
     }).catch(() => setNotFound(true))
   }, [id, fetchClinics])
@@ -72,49 +83,29 @@ export default function EditUserPage() {
     })()
   }, [form.company_id, fetchClinics])
 
-  function updateAccess(appId: string, patch: Partial<AppAccess>) {
-    setAppAccess((prev) => ({
-      ...prev,
-      [appId]: { ...(prev[appId] ?? { role: '', clinic_access_all: true, clinic_ids: [] }), ...patch },
-    }))
-  }
-
-  function setRole(appId: string, role: string) {
-    if (!role) {
-      setAppAccess((prev) => {
-        const next = { ...prev }
-        delete next[appId]
-        return next
-      })
-    } else {
-      updateAccess(appId, { role })
-    }
-  }
-
-  function toggleClinic(appId: string, clinicId: string) {
-    const current = appAccess[appId] ?? { role: '', clinic_access_all: true, clinic_ids: [] }
-    const ids = current.clinic_ids.includes(clinicId)
-      ? current.clinic_ids.filter((c) => c !== clinicId)
-      : [...current.clinic_ids, clinicId]
-    updateAccess(appId, { clinic_ids: ids })
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(''); setLoading(true)
     try {
-      const app_roles = Object.entries(appAccess)
-        .filter(([, a]) => a.role)
-        .map(([app_id, a]) => ({
-          app_id,
-          role: a.role,
-          clinic_access_all: a.clinic_access_all,
-          clinic_ids: a.clinic_access_all ? [] : a.clinic_ids,
-        }))
+      const app_roles = Object.entries(appRoles)
+        .filter(([, role]) => role)
+        .map(([app_id, role]) => {
+          const clinicIdsForApp = clinicAccessAll
+            ? []
+            : clinics
+                .filter((c) => c.app_id === app_id && selectedExternalIds.includes(c.external_id))
+                .map((c) => c.id)
+          return { app_id, role, clinic_access_all: clinicAccessAll, clinic_ids: clinicIdsForApp }
+        })
+
+      const globalClinicIds = clinicAccessAll
+        ? []
+        : clinics.filter((c) => selectedExternalIds.includes(c.external_id)).map((c) => c.id)
 
       const body: Record<string, unknown> = {
         name: form.name, email: form.email, role: form.role,
         company_id: form.company_id || null, active: form.active, app_roles,
+        clinic_access_all: clinicAccessAll, clinic_ids: globalClinicIds,
         subscription_plan: form.subscription_plan,
         subscription_expires_at: form.subscription_expires_at || null,
         max_clinics: form.max_clinics,
@@ -226,6 +217,19 @@ export default function EditUserPage() {
           </div>
         </div>
 
+        <ClinicsSection
+          companyId={form.company_id}
+          clinics={clinics}
+          loadingClinics={loadingClinics}
+          onSync={() => { fetchClinics(form.company_id, true) }}
+          accessAll={clinicAccessAll}
+          setAccessAll={setClinicAccessAll}
+          selectedExternalIds={selectedExternalIds}
+          setSelectedExternalIds={setSelectedExternalIds}
+        />
+
+        <AppsSection appRoles={appRoles} setAppRoles={setAppRoles} />
+
         <div className="bg-white rounded-xl border border-gray-100 shadow-card p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-800">Suscripción</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -253,17 +257,6 @@ export default function EditUserPage() {
             </div>
           </div>
         </div>
-
-        <AppsAndClinicsSection
-          companyId={form.company_id}
-          clinics={clinics}
-          loadingClinics={loadingClinics}
-          onSync={() => fetchClinics(form.company_id, true)}
-          appAccess={appAccess}
-          setRole={setRole}
-          updateAccess={updateAccess}
-          toggleClinic={toggleClinic}
-        />
 
         <div className="flex items-center justify-between">
           <div className="flex gap-3">
