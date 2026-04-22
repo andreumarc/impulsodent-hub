@@ -1,5 +1,5 @@
 import type Stripe from 'stripe'
-import { stripe } from './stripe'
+import { getStripe } from './stripe'
 
 export interface BillingMetrics {
   activeSubscriptions: number
@@ -56,6 +56,7 @@ const monthlyFactor = (interval: Stripe.Price.Recurring['interval']) => {
 }
 
 async function listAllSubscriptions(): Promise<Stripe.Subscription[]> {
+  const stripe = getStripe()
   const all: Stripe.Subscription[] = []
   let starting_after: string | undefined
   for (let i = 0; i < 20; i++) {
@@ -137,7 +138,7 @@ export async function getBillingOverview(): Promise<{
     if (sub.canceled_at && sub.canceled_at >= startOfMonthSec) canceledThisMonth++
   }
 
-  const invoicePage = await stripe.invoices.list({
+  const invoicePage = await getStripe().invoices.list({
     limit: 50,
     created: { gte: Math.floor(now - thirtyDays) },
     expand: ['data.customer'],
