@@ -95,30 +95,42 @@ export async function pushUserToApps(user: {
   const clinicIdsByApp = await buildClinicIdsForApps(user.id, appEntries.map(([id]) => id))
 
   await Promise.allSettled(
-    appEntries.map(([appId, appUrl]) => {
+    appEntries.map(async ([appId, appUrl]) => {
         // Use app-specific role if set, otherwise fall back to hub role
         const appRole = appRoles.find((r) => r.app_id === appId)?.role ?? user.role
 
         // All sub-apps (including fichaje, now Next.js on Vercel) use /api/sync/user.
         const syncPath = '/api/sync/user'
-        return fetch(`${appUrl}${syncPath}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${secret}`,
-          },
-          body: JSON.stringify({
-            email:                   user.email,
-            name:                    user.name,
-            role:                    appRole,
-            company_slug:            companySlug,
-            clinic_ids:              clinicIdsByApp[appId] ?? 'ALL',
-            subscription_plan:       user.subscription_plan,
-            subscription_expires_at: user.subscription_expires_at,
-            max_clinics:             user.max_clinics,
-            hub_token:               token,
-          }),
-        }).catch(() => {})
+        const url = `${appUrl}${syncPath}`
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${secret}`,
+            },
+            body: JSON.stringify({
+              email:                   user.email,
+              name:                    user.name,
+              role:                    appRole,
+              company_slug:            companySlug,
+              clinic_ids:              clinicIdsByApp[appId] ?? 'ALL',
+              subscription_plan:       user.subscription_plan,
+              subscription_expires_at: user.subscription_expires_at,
+              max_clinics:             user.max_clinics,
+              hub_token:               token,
+            }),
+          })
+          if (!res.ok) {
+            const body = await res.text().catch(() => '')
+            console.error('[sync] non-ok response', { app_id: appId, url, status: res.status, body: body.slice(0, 200) })
+          } else {
+            console.log('[sync] ok', { app_id: appId, url })
+          }
+        } catch (err) {
+          const e = err as { status?: number; message?: string }
+          console.error('[sync] failed', { app_id: appId, endpoint: url, status: e?.status, message: e?.message ?? String(err) })
+        }
       }),
   )
 }
@@ -142,15 +154,27 @@ export async function pushCompanyToApps(company: {
   const urls = Object.values(APP_URLS).filter((u): u is string => Boolean(u))
 
   await Promise.allSettled(
-    urls.map((appUrl) =>
-      fetch(`${appUrl}/api/sync/company`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${secret}`,
-        },
-        body: JSON.stringify(company),
-      }).catch(() => {}),
-    ),
+    urls.map(async (appUrl) => {
+      const url = `${appUrl}/api/sync/company`
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${secret}`,
+          },
+          body: JSON.stringify(company),
+        })
+        if (!res.ok) {
+          const body = await res.text().catch(() => '')
+          console.error('[sync] non-ok response', { app_id: appUrl, url, status: res.status, body: body.slice(0, 200) })
+        } else {
+          console.log('[sync] ok', { app_id: appUrl, url })
+        }
+      } catch (err) {
+        const e = err as { status?: number; message?: string }
+        console.error('[sync] failed', { app_id: appUrl, endpoint: url, status: e?.status, message: e?.message ?? String(err) })
+      }
+    }),
   )
 }

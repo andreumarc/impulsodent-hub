@@ -21,17 +21,32 @@ async function pushToSubApp(clinic: { app_id: string; external_id: string; name:
     const secret = process.env.JWT_SECRET ?? ''
     if (!company?.slug || !appUrl || !secret) return
     const syncPath = '/api/sync/clinics'
-    await fetch(`${appUrl}${syncPath}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-      body: JSON.stringify({
-        app_id: clinic.app_id,
-        company_slug: company.slug,
-        clinics: [{ id: clinic.external_id, name: clinic.name, active: clinic.active }],
-      }),
-      signal: AbortSignal.timeout(6000),
-    }).catch(() => {})
-  } catch { /* non-fatal */ }
+    const url = `${appUrl}${syncPath}`
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify({
+          app_id: clinic.app_id,
+          company_slug: company.slug,
+          clinics: [{ id: clinic.external_id, name: clinic.name, active: clinic.active }],
+        }),
+        signal: AbortSignal.timeout(6000),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error('[sync] non-ok response', { app_id: clinic.app_id, url, status: res.status, body: body.slice(0, 200) })
+      } else {
+        console.log('[sync] ok', { app_id: clinic.app_id, url })
+      }
+    } catch (err) {
+      const e = err as { status?: number; message?: string }
+      console.error('[sync] failed', { app_id: clinic.app_id, endpoint: url, status: e?.status, message: e?.message ?? String(err) })
+    }
+  } catch (err) {
+    const e = err as { status?: number; message?: string }
+    console.error('[sync] failed', { app_id: clinic.app_id, endpoint: 'pushToSubApp', status: e?.status, message: e?.message ?? String(err) })
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

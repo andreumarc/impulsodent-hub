@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
     subscription_plan: user.subscription_plan,
     subscription_expires_at: user.subscription_expires_at,
     max_clinics: user.max_clinics,
-  }).catch(() => {})
+  }).catch(err => console.error('[sync] failed', { app_id: 'pushUserToApps', endpoint: 'users.POST', status: err?.status, message: err?.message ?? String(err) }))
 
   return NextResponse.json(
     { ...user, password_hash: undefined, initials: getInitials(user.name) },
