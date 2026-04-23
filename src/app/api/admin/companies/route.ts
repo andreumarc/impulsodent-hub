@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { listCompaniesWithStats, createCompany, upsertExternalCompany } from '@/lib/db'
 import { pushCompanyToApps } from '@/lib/sync'
+import { hasPermission } from '@/lib/permissions'
 
 const APP_URLS: Record<string, string | undefined> = {
   clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
@@ -17,20 +18,14 @@ const APP_URLS: Record<string, string | undefined> = {
   clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
 }
 
-async function requireSuperadmin() {
+async function requireCompaniesManage() {
   const session = await getSession()
-  if (!session || session.role !== 'superadmin') return null
-  return session
-}
-
-async function requireAdmin() {
-  const session = await getSession()
-  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) return null
+  if (!session || !hasPermission(session.role, 'companies:manage')) return null
   return session
 }
 
 export async function GET(req: NextRequest) {
-  if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireCompaniesManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const pull = req.nextUrl.searchParams.get('pull') === '1'
   const onlyApp = req.nextUrl.searchParams.get('app_id') ?? undefined
@@ -91,7 +86,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireCompaniesManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
   const { name, slug, cif, city, email, phone, address, subscription_plan, subscription_expires_at, max_clinics, max_users } = body

@@ -17,11 +17,15 @@ const HOVER_BG      = 'rgba(255,255,255,0.07)'
 const BORDER_COLOR  = 'rgba(255,255,255,0.08)'
 const LOGO_ICON_BG  = '#0d9488'
 
+import { hasPermission, type HubPermission } from '@/lib/permissions'
+
 type NavItem = {
   href: string
   label: string
   icon: typeof LayoutDashboard
   exact?: boolean
+  /** Required permission to see this item; omit to show to everyone in admin */
+  perm?: HubPermission
   superadminOnly?: boolean
 }
 
@@ -30,16 +34,16 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: 'GESTIÓN',
     items: [
       { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-      { href: '/admin/companies', label: 'Empresas', icon: Building2, superadminOnly: true },
-      { href: '/admin/clinics', label: 'Clínicas', icon: Stethoscope },
-      { href: '/admin/users', label: 'Usuarios', icon: Users },
+      { href: '/admin/companies', label: 'Empresas', icon: Building2, perm: 'companies:manage' },
+      { href: '/admin/clinics', label: 'Clínicas', icon: Stethoscope, perm: 'clinics:manage' },
+      { href: '/admin/users', label: 'Usuarios', icon: Users, perm: 'users:manage' },
     ],
   },
   {
     title: 'APLICACIONES',
     items: [
-      { href: '/admin/apps', label: 'Registros', icon: LayoutGrid, superadminOnly: true },
-      { href: '/admin/sync', label: 'Sincronización', icon: RefreshCw, superadminOnly: true },
+      { href: '/admin/apps', label: 'Registros', icon: LayoutGrid, perm: 'apps:manage' },
+      { href: '/admin/sync', label: 'Sincronización', icon: RefreshCw, perm: 'sync:manage' },
       { href: '/admin/integrations', label: 'Integraciones', icon: Plug, superadminOnly: true },
       { href: '/admin/whatsapp', label: 'WhatsApp', icon: MessageCircle, superadminOnly: true },
     ],
@@ -61,7 +65,14 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebarProps) {
   const isSuperadmin = role === 'superadmin'
   const VISIBLE_GROUPS = NAV_GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((it) => isSuperadmin || !it.superadminOnly) }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => {
+        if (it.superadminOnly) return isSuperadmin
+        if (it.perm) return hasPermission(role, it.perm)
+        return true
+      }),
+    }))
     .filter((g) => g.items.length > 0)
   const pathname = usePathname()
   const [hoveredHref, setHoveredHref] = useState<string | null>(null)

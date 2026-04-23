@@ -3,16 +3,22 @@ import bcrypt from 'bcryptjs'
 import { getSession } from '@/lib/auth'
 import { getUser, updateUser, deleteUser, getUserAppRoles, setUserAppRoles, getUserClinicAccess, setUserClinicAccess, setUserClinicAccessAll } from '@/lib/db'
 import { pushUserToApps } from '@/lib/sync'
+import { hasPermission } from '@/lib/permissions'
 
 async function requireUserAccess(id: string) {
   const session = await getSession()
   if (!session) return null
   if (session.role === 'superadmin') return session
-  if (session.role !== 'admin') return null
+  if (!hasPermission(session.role, 'users:manage')) return null
   const target = await getUser(id)
   if (!target) return null
   if (!session.companyId || target.company_id !== session.companyId) return null
+  // Cannot touch users with a strictly higher role than the actor
   if (target.role === 'superadmin') return null
+  if (session.role !== 'admin' && target.role === 'admin') return null
+  if (session.role === 'direccion_clinica' || session.role === 'rrhh') {
+    if (['superadmin', 'admin', 'direccion_general'].includes(target.role)) return null
+  }
   return session
 }
 

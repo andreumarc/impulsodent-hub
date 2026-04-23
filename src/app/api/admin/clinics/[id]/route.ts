@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { deleteClinic, updateClinic } from '@/lib/db'
 import { prisma } from '@/lib/prisma'
+import { hasPermission } from '@/lib/permissions'
 
 const APP_URLS: Record<string, string | undefined> = {
   clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
@@ -76,12 +77,12 @@ async function pushToSubApp(clinic: { app_id: string; external_id: string; name:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
-  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) {
+  if (!session || !hasPermission(session.role, 'clinics:manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
   // Admin can only update clinics belonging to their own company
-  if (session.role === 'admin' && session.companyId) {
+  if (session.role !== 'superadmin' && session.companyId) {
     const existing = await prisma.clinic.findUnique({ where: { id } })
     if (!existing || existing.company_id !== session.companyId) {
       return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
@@ -96,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
-  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) {
+  if (!session || !hasPermission(session.role, 'clinics:manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
@@ -105,7 +106,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await deleteClinic(id).catch(() => {})
     return NextResponse.json({ ok: true })
   }
-  if (session.role === 'admin' && session.companyId && existing.company_id !== session.companyId) {
+  if (session.role !== 'superadmin' && session.companyId && existing.company_id !== session.companyId) {
     return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
   }
 

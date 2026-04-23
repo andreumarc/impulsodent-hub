@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { updateAppRegistration } from '@/lib/db'
+import { hasPermission } from '@/lib/permissions'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ appId: string }> }) {
   const session = await getSession()
-  if (!session || session.role !== 'superadmin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session || !hasPermission(session.role, 'apps:manage')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { appId } = await params
   const body = await req.json()

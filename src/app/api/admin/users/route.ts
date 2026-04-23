@@ -8,6 +8,7 @@ import {
 } from '@/lib/db'
 import { getInitials } from '@/lib/utils'
 import { pushUserToApps } from '@/lib/sync'
+import { hasPermission, canCreateRole, type HubRole } from '@/lib/permissions'
 
 const APP_URLS: Record<string, string | undefined> = {
   clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
@@ -31,7 +32,7 @@ async function requireSuperadmin() {
 
 async function requireAdmin() {
   const session = await getSession()
-  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) return null
+  if (!session || !hasPermission(session.role, 'users:manage')) return null
   return session
 }
 
@@ -124,14 +125,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email, password, name y role son obligatorios' }, { status: 400 })
   }
 
-  // Admin is scoped to their own company and cannot create superadmins
-  if (session.role === 'admin') {
-    if (!session.companyId) return NextResponse.json({ error: 'Admin sin empresa asignada' }, { status: 403 })
+  // Role-escalation guard: actors can only create roles at or below their own level
+  if (!canCreateRole(session.role, role as HubRole)) {
+    return NextResponse.json({ error: `No puedes crear usuarios con rol ${role}` }, { status: 403 })
+  }
+
+  // Non-superadmin actors are scoped to their own company
+  if (session.role !== 'superadmin') {
+    if (!session.companyId) return NextResponse.json({ error: 'Usuario sin empresa asignada' }, { status: 403 })
     if (company_id && company_id !== session.companyId) {
       return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
-    }
-    if (role === 'superadmin') {
-      return NextResponse.json({ error: 'No puedes crear usuarios superadmin' }, { status: 403 })
     }
     company_id = session.companyId
   }

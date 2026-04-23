@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { listCompanies, listAppRegistrations, listCompanyUsers, getCompanyAppAccess, createSyncLog } from '@/lib/db'
+import { hasPermission } from '@/lib/permissions'
 
-async function requireSuperadmin() {
+async function requireSyncManage() {
   const session = await getSession()
-  if (!session || session.role !== 'superadmin') return null
+  if (!session || !hasPermission(session.role, 'sync:manage')) return null
   return session
 }
 
@@ -22,7 +23,7 @@ async function logSync(payload: {
 }
 
 export async function POST(req: NextRequest) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireSyncManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const { companyId, appId } = body as { companyId?: string; appId?: string }

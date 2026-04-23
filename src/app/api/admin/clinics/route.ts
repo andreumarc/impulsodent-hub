@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { getSession } from '@/lib/auth'
 import { createClinic, listClinicsByCompany, listAllClinics, upsertClinic, getCompanyAppAccess } from '@/lib/db'
 import { prisma } from '@/lib/prisma'
+import { hasPermission } from '@/lib/permissions'
 
 const APP_URLS: Record<string, string | undefined> = {
   clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
@@ -19,7 +20,7 @@ const APP_URLS: Record<string, string | undefined> = {
 // Both superadmin and admin can list clinics.
 export async function GET(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) {
+  if (!session || !hasPermission(session.role, 'clinics:manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -35,15 +36,15 @@ export async function GET(req: NextRequest) {
       const all = await listAllClinics({ active_only: false })
       return NextResponse.json(all)
     }
-    if (session.role === 'admin' && session.companyId) {
+    if (session.companyId) {
       company_id = session.companyId
     } else {
       return NextResponse.json([], { status: 200 })
     }
   }
 
-  // Admin cannot inspect other companies' clinics
-  if (session.role === 'admin' && session.companyId && company_id !== session.companyId) {
+  // Non-superadmin roles cannot inspect other companies' clinics
+  if (session.role !== 'superadmin' && session.companyId && company_id !== session.companyId) {
     return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
   }
 
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
 // Body: { company_id, name, external_id? }
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'superadmin' && session.role !== 'admin')) {
+  if (!session || !hasPermission(session.role, 'clinics:manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Admin is scoped to their own company
-  if (session.role === 'admin' && session.companyId && session.companyId !== company_id) {
+  if (session.role !== 'superadmin' && session.companyId && session.companyId !== company_id) {
     return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
   }
 

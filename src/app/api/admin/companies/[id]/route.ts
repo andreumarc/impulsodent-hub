@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getCompany, updateCompany, deleteCompany, getCompanyAppAccess } from '@/lib/db'
 import { pushCompanyToApps } from '@/lib/sync'
+import { hasPermission } from '@/lib/permissions'
 
-async function requireSuperadmin() {
+async function requireCompaniesManage() {
   const session = await getSession()
-  if (!session || session.role !== 'superadmin') return null
+  if (!session || !hasPermission(session.role, 'companies:manage')) return null
   return session
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireCompaniesManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
   const company = await getCompany(id)
   if (!company) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -19,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireCompaniesManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
   const body = await req.json()
   try {
@@ -44,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!await requireSuperadmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireCompaniesManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
   try {
     await deleteCompany(id)
