@@ -33,7 +33,7 @@ const APP_SSO_PATHS: Record<string, string> = {
   clinicrefunds:      '/api/auth/hub-sso',  // NextAuth
   nexora:             '/api/auth/hub-sso',  // NextAuth
   clinicstock:        '/api/auth/hub-sso',  // NextAuth
-  'impulsodent-crm':  '/api/auth/hub-sso',  // NextAuth v5
+  'impulsodent-crm':  '/api/sso',  // NextAuth v5 — outside [..nextauth] catch-all
 }
 
 export async function GET(req: NextRequest) {
