@@ -95,12 +95,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json(clinic)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session || !hasPermission(session.role, 'clinics:manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
+  const onlyThisRow = req.nextUrl.searchParams.get('only') === '1'
   const existing = await prisma.clinic.findUnique({ where: { id } })
   if (!existing) {
     await deleteClinic(id).catch(() => {})
@@ -108,6 +109,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
   if (session.role !== 'superadmin' && session.companyId && existing.company_id !== session.companyId) {
     return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
+  }
+
+  // Granular: delete ONLY this app row (used when removing a single app from a clinic)
+  if (onlyThisRow) {
+    await pushDeleteToSubApp(existing)
+    await pushToSubApp({ ...existing, active: false })
+    await prisma.clinic.delete({ where: { id } }).catch(() => {})
+    return NextResponse.json({ ok: true, deleted: 1 })
   }
 
   // A clinic is replicated across multiple app rows sharing the same external_id.

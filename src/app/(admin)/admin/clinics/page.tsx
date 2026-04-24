@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, RefreshCw, Building2, ChevronDown, X, Stethoscope } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Building2, ChevronDown, X, Stethoscope, Pencil, Save } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
 interface Clinic {
@@ -63,7 +63,7 @@ export default function ClinicsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
-  // Modal state
+  // Modal state (Nueva)
   const [openNew, setOpenNew] = useState(false)
   const [newCompanyId, setNewCompanyId] = useState('')
   const [newName, setNewName] = useState('')
@@ -71,6 +71,14 @@ export default function ClinicsPage() {
   const [newAllApps, setNewAllApps] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  // Modal state (Editar)
+  const [editGroup, setEditGroup] = useState<ClinicGroup | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editActive, setEditActive] = useState(true)
+  const [editAppIds, setEditAppIds] = useState<string[]>([])
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
 
   async function loadClinics() {
     setLoading(true)
@@ -188,8 +196,73 @@ export default function ClinicsPage() {
 
   async function handleDeleteRow(row_id: string, name: string) {
     if (!confirm(`¿Eliminar "${name}" de este aplicativo?`)) return
-    const r = await fetch(`/api/admin/clinics/${row_id}`, { method: 'DELETE' })
+    const r = await fetch(`/api/admin/clinics/${row_id}?only=1`, { method: 'DELETE' })
     if (r.ok) setClinics((prev) => prev.filter((x) => x.id !== row_id))
+  }
+
+  function openEditModal(g: ClinicGroup) {
+    setEditGroup(g)
+    setEditName(g.name)
+    setEditActive(g.apps.every((a) => a.active))
+    setEditAppIds(g.apps.map((a) => a.app_id))
+    setEditError(null)
+  }
+
+  function toggleEditApp(appId: string) {
+    setEditAppIds((prev) =>
+      prev.includes(appId) ? prev.filter((x) => x !== appId) : [...prev, appId],
+    )
+  }
+
+  async function handleSaveEdit() {
+    if (!editGroup) return
+    setEditError(null)
+    const trimmed = editName.trim()
+    if (!trimmed) { setEditError('El nombre no puede estar vacío'); return }
+    if (editAppIds.length === 0) { setEditError('Selecciona al menos un aplicativo'); return }
+
+    setEditSaving(true)
+    try {
+      const currentApps = editGroup.apps.map((a) => a.app_id)
+      const toAdd    = editAppIds.filter((a) => !currentApps.includes(a))
+      const toRemove = editGroup.apps.filter((a) => !editAppIds.includes(a.app_id))
+
+      // 1) PATCH each existing (kept) row with new name + active
+      const keptRows = editGroup.apps.filter((a) => editAppIds.includes(a.app_id))
+      await Promise.all(keptRows.map((a) =>
+        fetch(`/api/admin/clinics/${a.row_id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: trimmed, active: editActive }),
+        }),
+      ))
+
+      // 2) DELETE (single-row) apps that were removed
+      await Promise.all(toRemove.map((a) =>
+        fetch(`/api/admin/clinics/${a.row_id}?only=1`, { method: 'DELETE' }),
+      ))
+
+      // 3) POST to add new apps (reusing external_id)
+      if (toAdd.length > 0) {
+        await fetch('/api/admin/clinics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company_id: editGroup.company_id,
+            name: trimmed,
+            external_id: editGroup.external_id,
+            app_ids: toAdd,
+          }),
+        })
+      }
+
+      setEditGroup(null)
+      await loadClinics()
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : 'Error desconocido')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   async function handleDeleteGroup(g: ClinicGroup) {
@@ -404,11 +477,18 @@ export default function ClinicsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => handleDeleteGroup(g)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Eliminar</span>
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openEditModal(g)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </button>
+                        <button onClick={() => handleDeleteGroup(g)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Eliminar</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -504,6 +584,102 @@ export default function ClinicsPage() {
           </div>
         </div>
       )}
+
+      {/* Modal: Editar clínica */}
+      {editGroup && (() => {
+        const editCompany = companyById.get(editGroup.company_id)
+        const availableApps = editCompany
+          ? SYNCABLE_APPS.filter((a) => editCompany.appIds.includes(a.id))
+          : SYNCABLE_APPS.filter((a) => editGroup.apps.some((x) => x.app_id === a.id))
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Editar clínica</h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5 font-mono">{editGroup.external_id}</p>
+                </div>
+                <button onClick={() => setEditGroup(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Empresa</label>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                    {editCompany?.name ?? editGroup.company_id}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nombre de la clínica</label>
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400" />
+                </div>
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={editActive} onChange={(e) => setEditActive(e.target.checked)}
+                      className="rounded border-gray-300 text-brand-500 focus:ring-brand-400" />
+                    <span className="text-sm text-gray-700">Activa</span>
+                    <span className="text-[11px] text-gray-400 ml-1">
+                      (desactivar sincroniza como inactiva en todos los sub-aplicativos)
+                    </span>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">Aplicativos asignados</label>
+                  {availableApps.length === 0 ? (
+                    <div className="text-xs text-orange-600 px-3 py-3 bg-orange-50 rounded-lg">
+                      No hay aplicativos disponibles para esta empresa.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {availableApps.map((a) => {
+                        const checked = editAppIds.includes(a.id)
+                        const wasAssigned = editGroup.apps.some((x) => x.app_id === a.id)
+                        return (
+                          <label key={a.id}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                              checked ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 hover:bg-gray-50'
+                            }`}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleEditApp(a.id)}
+                              className="rounded border-gray-300 text-brand-500 focus:ring-brand-400" />
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                              style={{ background: a.bgColor, color: a.color }}>
+                              {a.name.slice(0, 2).toUpperCase()}
+                            </span>
+                            <span className="text-sm text-gray-700 truncate flex-1">{a.name}</span>
+                            {wasAssigned && !checked && (
+                              <span className="text-[9px] font-bold text-red-500 uppercase">quitar</span>
+                            )}
+                            {!wasAssigned && checked && (
+                              <span className="text-[9px] font-bold text-green-600 uppercase">añadir</span>
+                            )}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                {editError && (
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{editError}</div>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+                <button onClick={() => setEditGroup(null)} disabled={editSaving}
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-60">
+                  Cancelar
+                </button>
+                <button onClick={handleSaveEdit} disabled={editSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60">
+                  {editSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {editSaving ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
