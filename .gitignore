@@ -42,3 +42,5 @@ next-env.d.ts
 .env.vercel.check
 .env.prod
 .env.production
+
+.env*.local
