@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Power, Pencil, Trash2, RefreshCw, Building2, ChevronRight, LayoutGrid } from 'lucide-react'
+import { Plus, Power, Pencil, Trash2, RefreshCw, Building2, ChevronRight, X, Save } from 'lucide-react'
 import { APPS } from '@/lib/apps'
+
+const SYNCABLE_APPS = APPS.filter((a) => !a.internal)
 
 const PLAN_LABELS: Record<string, string> = { free: 'Free', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise' }
 const PLAN_COLORS: Record<string, string> = {
@@ -38,6 +40,13 @@ export default function CompaniesPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+
+  // Edit modal
+  const [editCompany, setEditCompany] = useState<CompanyWithStats | null>(null)
+  const [editForm, setEditForm] = useState<Partial<CompanyWithStats>>({})
+  const [editAppIds, setEditAppIds] = useState<string[]>([])
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   function loadCompanies() {
     return fetch('/api/admin/companies').then((r) => r.json()).then(setCompanies).catch(() => null)
@@ -98,6 +107,58 @@ export default function CompaniesPage() {
 
   function toggleAll() {
     setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((c) => c.id)))
+  }
+
+  function openEdit(c: CompanyWithStats) {
+    setEditCompany(c)
+    setEditForm({
+      name: c.name, cif: c.cif, city: c.city, email: c.email, phone: c.phone,
+      active: c.active, subscription_plan: c.subscription_plan,
+    })
+    setEditAppIds(c.appIds ?? [])
+    setEditError(null)
+  }
+
+  function toggleEditApp(appId: string) {
+    setEditAppIds((prev) =>
+      prev.includes(appId) ? prev.filter((x) => x !== appId) : [...prev, appId],
+    )
+  }
+
+  async function saveEdit() {
+    if (!editCompany) return
+    setEditError(null)
+    if (!editForm.name?.toString().trim()) { setEditError('El nombre es obligatorio'); return }
+    setEditSaving(true)
+    try {
+      // 1) Save company fields
+      const r1 = await fetch(`/api/admin/companies/${editCompany.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      if (!r1.ok) {
+        const d = await r1.json().catch(() => ({}))
+        setEditError(d.error || `Error HTTP ${r1.status}`)
+        return
+      }
+      // 2) Save app permissions (always — server handles the diff)
+      const r2 = await fetch(`/api/admin/companies/${editCompany.id}/apps`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appIds: editAppIds }),
+      })
+      if (!r2.ok) {
+        setEditError('Empresa guardada, pero error al guardar permisos de apps')
+        return
+      }
+      setEditCompany(null)
+      await loadCompanies()
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : 'Error desconocido')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   return (
@@ -270,6 +331,11 @@ export default function CompaniesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-0.5">
+                        <button onClick={() => openEdit(c)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </button>
                         <button onClick={() => toggleActive(c)}
                           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                             c.active ? 'text-orange-500 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'
@@ -284,7 +350,7 @@ export default function CompaniesPage() {
                         </button>
                         <Link href={`/admin/companies/${c.id}`}
                           className="p-1.5 text-gray-400 hover:text-brand-500 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Editar empresa">
+                          title="Detalle avanzado (usuarios, clínicas…)">
                           <ChevronRight className="w-4 h-4" />
                         </Link>
                       </div>
@@ -294,6 +360,103 @@ export default function CompaniesPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Modal: Editar empresa */}
+      {editCompany && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Editar empresa</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5 font-mono">{editCompany.slug}</p>
+              </div>
+              <button onClick={() => setEditCompany(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {([
+                  { key: 'name',  label: 'Nombre' },
+                  { key: 'cif',   label: 'CIF / NIF' },
+                  { key: 'city',  label: 'Ciudad' },
+                  { key: 'email', label: 'Email', type: 'email' },
+                  { key: 'phone', label: 'Teléfono' },
+                ] as { key: keyof CompanyWithStats; label: string; type?: string }[]).map(({ key, label, type }) => (
+                  <div key={key}>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">{label}</label>
+                    <input
+                      type={type ?? 'text'}
+                      value={(editForm[key] as string) ?? ''}
+                      onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Plan</label>
+                  <select value={(editForm.subscription_plan as string) ?? 'free'}
+                    onChange={(e) => setEditForm((f) => ({ ...f, subscription_plan: e.target.value }))}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400">
+                    {Object.entries(PLAN_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox"
+                    checked={Boolean(editForm.active)}
+                    onChange={(e) => setEditForm((f) => ({ ...f, active: e.target.checked }))}
+                    className="rounded border-gray-300 text-brand-500 focus:ring-brand-400" />
+                  <span className="text-sm text-gray-700">Empresa activa</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Aplicativos habilitados</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {SYNCABLE_APPS.map((a) => {
+                    const checked = editAppIds.includes(a.id)
+                    return (
+                      <label key={a.id}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                          checked ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 hover:bg-gray-50'
+                        }`}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleEditApp(a.id)}
+                          className="rounded border-gray-300 text-brand-500 focus:ring-brand-400" />
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: a.bgColor, color: a.color }}>
+                          {a.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className="text-sm text-gray-700 truncate flex-1">{a.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">
+                  Los cambios en aplicativos se propagan al resto de sub-aplicativos.
+                </p>
+              </div>
+
+              {editError && (
+                <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{editError}</div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+              <button onClick={() => setEditCompany(null)} disabled={editSaving}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-60">
+                Cancelar
+              </button>
+              <button onClick={saveEdit} disabled={editSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60">
+                {editSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {editSaving ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
