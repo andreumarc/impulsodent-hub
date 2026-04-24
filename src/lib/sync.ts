@@ -63,9 +63,10 @@ const APP_URLS: Record<string, string | undefined> = {
   nexuserp:      process.env.NEXT_PUBLIC_URL_NEXUSERP,
   dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
   dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
-  clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+  clinicrefunds:     process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
+  nexora:            process.env.NEXT_PUBLIC_URL_NEXORA,
+  clinicstock:       process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+  'impulsodent-crm': process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
 }
 
 async function makeHubJwt(): Promise<string> {
