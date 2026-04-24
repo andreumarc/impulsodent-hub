@@ -4,34 +4,36 @@ import { getSession } from '@/lib/auth'
 import { getUserAppRoles, getCompany } from '@/lib/db'
 
 const APP_URLS: Record<string, string | undefined> = {
-  clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
-  clinicvox:     process.env.NEXT_PUBLIC_URL_CLINICVOX,
-  dentalspot:    process.env.NEXT_PUBLIC_URL_DENTALSPOT,
-  spendflow:     process.env.NEXT_PUBLIC_URL_SPENDFLOW,
-  fichaje:       process.env.NEXT_PUBLIC_URL_FICHAJE,
-  zentrix:       process.env.NEXT_PUBLIC_URL_ZENTRIX,
-  nexuserp:      process.env.NEXT_PUBLIC_URL_NEXUSERP,
-  dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
-  dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
-  clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+  clinicpnl:          process.env.NEXT_PUBLIC_URL_CLINICPNL,
+  clinicvox:          process.env.NEXT_PUBLIC_URL_CLINICVOX,
+  dentalspot:         process.env.NEXT_PUBLIC_URL_DENTALSPOT,
+  spendflow:          process.env.NEXT_PUBLIC_URL_SPENDFLOW,
+  fichaje:            process.env.NEXT_PUBLIC_URL_FICHAJE,
+  zentrix:            process.env.NEXT_PUBLIC_URL_ZENTRIX,
+  nexuserp:           process.env.NEXT_PUBLIC_URL_NEXUSERP,
+  dentalhr:           process.env.NEXT_PUBLIC_URL_DENTALHR,
+  dentalreports:      process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
+  clinicrefunds:      process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
+  nexora:             process.env.NEXT_PUBLIC_URL_NEXORA,
+  clinicstock:        process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+  'impulsodent-crm':  process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
 }
 
 // Each app's SSO receiver path
 const APP_SSO_PATHS: Record<string, string> = {
-  clinicpnl:     '/api/auth/hub-sso',  // Supabase
-  clinicvox:     '/api/auth/hub-sso',  // NextAuth
-  dentalspot:    '/api/auth/hub-sso',  // NextAuth
-  spendflow:     '/sso',               // NestJS — needs client-side localStorage
-  fichaje:       '/sso',               // NestJS — needs client-side localStorage
-  zentrix:       '/api/auth/hub-sso',  // NextAuth
-  nexuserp:      '/sso',               // NestJS
-  dentalhr:      '/api/auth/hub-sso',  // Custom Prisma
-  dentalreports: '/api/auth/hub-sso',  // Supabase
-  clinicrefunds: '/api/auth/hub-sso',  // NextAuth
-  nexora:        '/api/auth/hub-sso',  // NextAuth
-  clinicstock:   '/api/auth/hub-sso',  // NextAuth
+  clinicpnl:          '/api/auth/hub-sso',  // Supabase
+  clinicvox:          '/api/auth/hub-sso',  // NextAuth
+  dentalspot:         '/api/auth/hub-sso',  // NextAuth
+  spendflow:          '/sso',               // NestJS — needs client-side localStorage
+  fichaje:            '/sso',               // NestJS — needs client-side localStorage
+  zentrix:            '/api/auth/hub-sso',  // NextAuth
+  nexuserp:           '/sso',               // NestJS
+  dentalhr:           '/api/auth/hub-sso',  // Custom Prisma
+  dentalreports:      '/api/auth/hub-sso',  // Supabase
+  clinicrefunds:      '/api/auth/hub-sso',  // NextAuth
+  nexora:             '/api/auth/hub-sso',  // NextAuth
+  clinicstock:        '/api/auth/hub-sso',  // NextAuth
+  'impulsodent-crm':  '/api/auth/hub-sso',  // NextAuth v5
 }
 
 export async function GET(req: NextRequest) {

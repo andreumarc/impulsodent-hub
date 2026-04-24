@@ -140,6 +140,17 @@ export const APPS: AppDef[] = [
     category: 'Comunicación',
   },
   {
+    id: 'impulsodent-crm',
+    name: 'Impulsodent CRM',
+    description: 'CRM de leads con tablero Monday-like, WhatsApp Business integrado y automatizaciones.',
+    icon: 'Target',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM || 'https://crm.impulsodent.com',
+    status: 'active',
+    category: 'CRM',
+  },
+  {
     id: 'integrations',
     name: 'Integraciones',
     description: 'Gestiona conectores, claves API y sincronización entre Hub y sub-aplicativos. Sólo administradores.',
