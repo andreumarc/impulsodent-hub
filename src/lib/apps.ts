@@ -151,6 +151,17 @@ export const APPS: AppDef[] = [
     category: 'CRM',
   },
   {
+    id: 'talent',
+    name: 'Impulsodent Talent',
+    description: 'Evaluación del desempeño, matriz 9-box y planes de desarrollo para tu equipo dental.',
+    icon: 'Grid3x3',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_TALENT || 'https://talent-marc19.vercel.app',
+    status: 'active',
+    category: 'RRHH',
+  },
+  {
     id: 'integrations',
     name: 'Integraciones',
     description: 'Gestiona conectores, claves API y sincronización entre Hub y sub-aplicativos. Sólo administradores.',
