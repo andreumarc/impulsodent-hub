@@ -23,7 +23,7 @@ const APP_URLS: Record<string, string | undefined> = {
 const APP_SSO_PATHS: Record<string, string> = {
   clinicpnl:          '/api/auth/hub-sso',  // Supabase
   clinicvox:          '/api/auth/hub-sso',  // NextAuth
-  dentalspot:         '/api/auth/hub-sso',  // NextAuth
+  dentalspot:         '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   spendflow:          '/sso',               // NestJS — needs client-side localStorage
   fichaje:            '/sso',               // NestJS — needs client-side localStorage
   zentrix:            '/api/auth/hub-sso',  // NextAuth
@@ -57,23 +57,29 @@ export async function GET(req: NextRequest) {
     companySlug = company?.slug ?? null
   }
 
-  // Get user's role for this specific app
+  // Get user's role and clinic access for this specific app
   let appRole = session.role === 'superadmin' ? 'superadmin' : ''
+  let clinicIds: string[] | 'ALL' = 'ALL'
   if (session.role !== 'superadmin') {
     const appRoles = await getUserAppRoles(session.id)
-    appRole = appRoles.find((r) => r.app_id === appId)?.role ?? session.role
+    const appRoleRow = appRoles.find((r) => r.app_id === appId)
+    appRole = appRoleRow?.role ?? session.role
+    if (appRoleRow) {
+      clinicIds = appRoleRow.clinic_access_all ? 'ALL' : (appRoleRow.clinic_ids ?? [])
+    }
   }
 
   const secret = new TextEncoder().encode(process.env.JWT_SECRET!)
   const token = await new SignJWT({
-    sub:        session.id,
-    email:      session.email,
-    name:       session.name,
-    hub_role:   session.role,
-    app_role:   appRole,
-    app_id:     appId,
+    sub:          session.id,
+    email:        session.email,
+    name:         session.name,
+    hub_role:     session.role,
+    app_role:     appRole,
+    app_id:       appId,
     company_id:   session.companyId ?? null,
     company_slug: companySlug,
+    clinic_ids:   clinicIds,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
