@@ -22,6 +22,7 @@ const APP_URLS: Record<string, string | undefined> = {
   dentalspot:    process.env.NEXT_PUBLIC_URL_DENTALSPOT,
   clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
   clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+  clinicnps:     process.env.NEXT_PUBLIC_URL_CLINICNPS,
 }
 
 async function requireSuperadmin() {
