@@ -70,7 +70,7 @@ const APP_URLS: Record<string, string | undefined> = {
   'impulsodent-talent': process.env.NEXT_PUBLIC_URL_IMPULSODENT_TALENT,
   'impulsodent-crm':    process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
   'dental-leads':       process.env.NEXT_PUBLIC_URL_DENTAL_LEADS,
-  clinicleads:          process.env.NEXT_PUBLIC_URL_CLINICLEADS,
+  clinicnps:            process.env.NEXT_PUBLIC_URL_CLINICNPS,
 }
 
 async function makeHubJwt(): Promise<string> {
