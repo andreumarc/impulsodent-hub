@@ -162,6 +162,17 @@ export const APPS: AppDef[] = [
     category: 'RRHH',
   },
   {
+    id: 'dental-leads',
+    name: 'Dental Leads',
+    description: 'Gestión de leads y captación de pacientes para clínicas dentales.',
+    icon: 'UserPlus',
+    color: '#0D9488',
+    bgColor: '#ccfbf1',
+    url: process.env.NEXT_PUBLIC_URL_DENTAL_LEADS || 'https://dental-leads.vercel.app',
+    status: 'active',
+    category: 'CRM',
+  },
+  {
     id: 'integrations',
     name: 'Integraciones',
     description: 'Gestiona conectores, claves API y sincronización entre Hub y sub-aplicativos. Sólo administradores.',

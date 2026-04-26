@@ -77,5 +77,6 @@ insert into app_registrations (app_id, name, sync_enabled) values
   ('spendflow',     'SpendFlow',     false),
   ('zentrix',       'ZENTRIX',       false),
   ('nexuserp',      'NexusERP',      false),
-  ('dentalreports', 'DentalReports', false)
+  ('dentalreports', 'DentalReports', false),
+  ('dental-leads',  'Dental Leads',  false)
 on conflict (app_id) do nothing;

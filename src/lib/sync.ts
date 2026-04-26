@@ -63,10 +63,13 @@ const APP_URLS: Record<string, string | undefined> = {
   nexuserp:      process.env.NEXT_PUBLIC_URL_NEXUSERP,
   dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
   dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  clinicrefunds:     process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  nexora:            process.env.NEXT_PUBLIC_URL_NEXORA,
-  clinicstock:       process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
-  'impulsodent-crm': process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
+  clinicrefunds:        process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
+  nexora:               process.env.NEXT_PUBLIC_URL_NEXORA,
+  clinicstock:          process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+  clinicflow:           process.env.NEXT_PUBLIC_URL_CLINICFLOW,
+  'impulsodent-talent': process.env.NEXT_PUBLIC_URL_IMPULSODENT_TALENT,
+  'impulsodent-crm':    process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
+  'dental-leads':       process.env.NEXT_PUBLIC_URL_DENTAL_LEADS,
 }
 
 async function makeHubJwt(): Promise<string> {

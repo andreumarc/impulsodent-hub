@@ -14,6 +14,7 @@ const APPS = [
   { app_id: 'dentalhr',      name: 'DentalHR' },
   { app_id: 'dentalreports', name: 'DentalReports' },
   { app_id: 'nexora',        name: 'Nexora' },
+  { app_id: 'dental-leads',  name: 'Dental Leads' },
 ]
 
 async function main() {
