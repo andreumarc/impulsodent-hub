@@ -173,6 +173,17 @@ export const APPS: AppDef[] = [
     category: 'CRM',
   },
   {
+    id: 'clinicleads',
+    name: 'ClinicLeads NPS',
+    description: 'Encuestas NPS automatizadas por WhatsApp y email para medir la satisfacción de pacientes.',
+    icon: 'Star',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_CLINICLEADS || 'https://clinicleads.vercel.app',
+    status: 'active',
+    category: 'CRM',
+  },
+  {
     id: 'integrations',
     name: 'Integraciones',
     description: 'Gestiona conectores, claves API y sincronización entre Hub y sub-aplicativos. Sólo administradores.',
