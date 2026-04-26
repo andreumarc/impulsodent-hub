@@ -17,6 +17,7 @@ const APP_URLS: Record<string, string | undefined> = {
   nexora:             process.env.NEXT_PUBLIC_URL_NEXORA,
   clinicstock:        process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
   'impulsodent-crm':  process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
+  clinicnps:          process.env.NEXT_PUBLIC_URL_CLINICNPS,
 }
 
 // Each app's SSO receiver path
@@ -34,6 +35,7 @@ const APP_SSO_PATHS: Record<string, string> = {
   nexora:             '/api/auth/hub-sso',  // NextAuth
   clinicstock:        '/api/auth/hub-sso',  // NextAuth
   'impulsodent-crm':  '/api/sso',  // NextAuth v5 — outside [..nextauth] catch-all
+  clinicnps:          '/api/auth/hub-sso',
 }
 
 export async function GET(req: NextRequest) {
