@@ -184,6 +184,17 @@ export const APPS: AppDef[] = [
     category: 'Pacientes',
   },
   {
+    id: 'clinicleads',
+    name: 'ClinicLeads',
+    description: 'Captación y gestión de leads para clínicas.',
+    icon: 'Target',
+    color: '#0D9488',
+    bgColor: '#ccfbf1',
+    url: process.env.NEXT_PUBLIC_URL_CLINICLEADS || 'https://clinicleads.vercel.app',
+    status: 'active',
+    category: 'CRM',
+  },
+  {
     id: 'integrations',
     name: 'Integraciones',
     description: 'Gestiona conectores, claves API y sincronización entre Hub y sub-aplicativos. Sólo administradores.',
