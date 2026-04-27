@@ -33,7 +33,7 @@ const APP_SSO_PATHS: Record<string, string> = {
   dentalreports:      '/api/auth/hub-sso',  // Supabase
   clinicrefunds:      '/api/auth/hub-sso',  // NextAuth
   nexora:             '/api/auth/hub-sso',  // NextAuth
-  clinicstock:        '/api/auth/hub-sso',  // NextAuth
+  clinicstock:        '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   'impulsodent-crm':  '/api/sso',  // NextAuth v5 — outside [..nextauth] catch-all
   clinicnps:          '/api/auth/hub-sso',
 }
