@@ -69,12 +69,10 @@ const ROLE_LABELS: Record<string, string> = {
 const APP_ID_LABELS: Record<string, string> = {
   clinicpnl: 'ClinicPNL',
   clinicvox: 'ClinicVox',
-  dentalspot: 'DentalSpot',
   dentalhr: 'DentalHR',
   fichaje: 'Fichajeshr',
   spendflow: 'SpendFlow',
   zentrix: 'ZENTRIX',
-  nexuserp: 'NexusERP',
   clinicrefunds: 'ClinicRefunds',
   dentalreports: 'DentalReports',
   nexora: 'Nexora',
@@ -83,17 +81,21 @@ const APP_ID_LABELS: Record<string, string> = {
 
 // Apps shown in the grid (Tab Aplicaciones), matching APPS in lib/apps.ts
 const IMPULSODENT_APPS = [
-  { id: 'clinicpnl',     name: 'ClinicPNL',      desc: 'Dashboard financiero con rentabilidad y KPIs',       color: '#003A70', bg: '#e6eef7', urlEnv: 'NEXT_PUBLIC_URL_CLINICPNL' },
-  { id: 'clinicvox',     name: 'ClinicVox',       desc: 'Automatización de llamadas y citas por voz',        color: '#00A99D', bg: '#e0f7f6', urlEnv: 'NEXT_PUBLIC_URL_CLINICVOX' },
-  { id: 'dentalspot',    name: 'DentalSpot',      desc: 'Agenda, tratamientos, presupuestos y stock',        color: '#2a6bb8', bg: '#dbeafe', urlEnv: 'NEXT_PUBLIC_URL_DENTALSPOT' },
-  { id: 'dentalhr',      name: 'DentalHR',        desc: 'Recursos humanos para clínicas dentales',           color: '#059669', bg: '#d1fae5', urlEnv: 'NEXT_PUBLIC_URL_DENTALHR' },
-  { id: 'fichaje',       name: 'Fichajeshr',      desc: 'Control horario con geolocalización y app móvil',   color: '#16a34a', bg: '#dcfce7', urlEnv: 'NEXT_PUBLIC_URL_FICHAJE' },
-  { id: 'spendflow',     name: 'SpendFlow',       desc: 'Gastos corporativos y reembolsos tipo SAP Concur',  color: '#d97706', bg: '#fef3c7', urlEnv: 'NEXT_PUBLIC_URL_SPENDFLOW' },
-  { id: 'zentrix',       name: 'ZENTRIX',         desc: 'ERP cloud: facturación, contabilidad y CRM',        color: '#7c3aed', bg: '#ede9fe', urlEnv: 'NEXT_PUBLIC_URL_ZENTRIX' },
-  { id: 'nexuserp',      name: 'NexusERP',        desc: 'CRM y ERP modular con ventas e inventario',         color: '#4338ca', bg: '#e0e7ff', urlEnv: 'NEXT_PUBLIC_URL_NEXUSERP' },
-  { id: 'clinicrefunds', name: 'ClinicRefunds',   desc: 'Gestión de devoluciones y reembolsos dentales',     color: '#003A70', bg: '#e6eef7', urlEnv: 'NEXT_PUBLIC_URL_CLINICREFUNDS' },
-  { id: 'dentalreports', name: 'DentalReports',   desc: 'Informes avanzados y analítica para clínicas',      color: '#0891b2', bg: '#cffafe', urlEnv: 'NEXT_PUBLIC_URL_DENTALREPORTS' },
-  { id: 'nexora',        name: 'Nexora',          desc: 'Comunicación interna: chat, anuncios y documentos', color: '#7c3aed', bg: '#ede9fe', urlEnv: 'NEXT_PUBLIC_URL_NEXORA' },
+  { id: 'clinicpnl',       name: 'ClinicPNL',         desc: 'Dashboard financiero con rentabilidad y KPIs',        color: '#003A70', bg: '#e6eef7' },
+  { id: 'clinicvox',       name: 'ClinicVox',          desc: 'Automatización de llamadas y citas por voz',         color: '#00A99D', bg: '#e0f7f6' },
+  { id: 'dentalhr',        name: 'DentalHR',           desc: 'Recursos humanos para clínicas dentales',            color: '#059669', bg: '#d1fae5' },
+  { id: 'fichaje',         name: 'Fichajeshr',         desc: 'Control horario con geolocalización y app móvil',    color: '#16a34a', bg: '#dcfce7' },
+  { id: 'spendflow',       name: 'SpendFlow',          desc: 'Gastos corporativos y reembolsos tipo SAP Concur',   color: '#d97706', bg: '#fef3c7' },
+  { id: 'zentrix',         name: 'ZENTRIX',            desc: 'ERP cloud: facturación, contabilidad y CRM',         color: '#7c3aed', bg: '#ede9fe' },
+  { id: 'clinicrefunds',   name: 'ClinicRefunds',      desc: 'Gestión de devoluciones y reembolsos dentales',      color: '#003A70', bg: '#e6eef7' },
+  { id: 'dentalreports',   name: 'DentalReports',      desc: 'Informes avanzados y analítica para clínicas',       color: '#0891b2', bg: '#cffafe' },
+  { id: 'nexora',          name: 'Nexora',             desc: 'Comunicación interna: chat, anuncios y documentos',  color: '#7c3aed', bg: '#ede9fe' },
+  { id: 'clinicstock',     name: 'ClinicStock',        desc: 'Gestión de stock, compras e inventarios dentales',   color: '#003A70', bg: '#e6eef7' },
+  { id: 'impulsodent-crm', name: 'Impulsodent CRM',   desc: 'CRM de leads con tablero y automatizaciones',        color: '#003A70', bg: '#e6eef7' },
+  { id: 'talent',          name: 'Impulsodent Talent', desc: 'Evaluación del desempeño y planes de desarrollo',    color: '#003A70', bg: '#e6eef7' },
+  { id: 'clinicnps',       name: 'ImpulsoNPS',         desc: 'Encuestas NPS por WhatsApp y email',                 color: '#003A70', bg: '#e6eef7' },
+  { id: 'clinicleads',     name: 'ClinicLeads',        desc: 'Captación y gestión de leads para clínicas',         color: '#0D9488', bg: '#ccfbf1' },
+  { id: 'clinicflow',      name: 'ClinicFlow OS',      desc: 'Protocolos clínicos por fases con checklists',       color: '#003A70', bg: '#e6eef7' },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -482,7 +484,7 @@ function TabApps({ appRoles }: { appRoles: ProfileAppRole[] }) {
             </div>
             <p className="text-xs text-gray-500 leading-relaxed flex-1">{app.desc}</p>
             <a
-              href={`/api/auth/launch?app=${app.id}`}
+              href={`/api/auth/launch?appId=${app.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${

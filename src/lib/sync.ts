@@ -1,5 +1,6 @@
 import { SignJWT } from 'jose'
 import { prisma } from './prisma'
+import { APP_URLS } from './app-urls'
 
 // Build per-app clinic_ids for a user from UserAppRole (per-app scope).
 // Returns 'ALL' when that app's role has clinic_access_all=true, else the
@@ -51,27 +52,6 @@ async function buildClinicIdsForApps(
     }
   }
   return result
-}
-
-const APP_URLS: Record<string, string | undefined> = {
-  clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
-  clinicvox:     process.env.NEXT_PUBLIC_URL_CLINICVOX,
-  dentalspot:    process.env.NEXT_PUBLIC_URL_DENTALSPOT,
-  spendflow:     process.env.NEXT_PUBLIC_URL_SPENDFLOW,
-  fichaje:       process.env.NEXT_PUBLIC_URL_FICHAJE,
-  zentrix:       process.env.NEXT_PUBLIC_URL_ZENTRIX,
-  nexuserp:      process.env.NEXT_PUBLIC_URL_NEXUSERP,
-  dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
-  dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  clinicrefunds:        process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  nexora:               process.env.NEXT_PUBLIC_URL_NEXORA,
-  clinicstock:          process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
-  clinicflow:           process.env.NEXT_PUBLIC_URL_CLINICFLOW,
-  'impulsodent-talent': process.env.NEXT_PUBLIC_URL_IMPULSODENT_TALENT,
-  'impulsodent-crm':    process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
-  'dental-leads':       process.env.NEXT_PUBLIC_URL_DENTAL_LEADS,
-  clinicnps:            process.env.NEXT_PUBLIC_URL_CLINICNPS,
-  clinicleads:          process.env.NEXT_PUBLIC_URL_CLINICLEADS,
 }
 
 async function makeHubJwt(): Promise<string> {
@@ -134,6 +114,9 @@ export async function pushUserToApps(user: {
     appEntries.map(async ([appId, appUrl]) => {
         // Use app-specific role if set, otherwise fall back to hub role
         const appRole = appRoles.find((r) => r.app_id === appId)?.role ?? user.role
+        // SUPERADMIN always gets full access to ALL clinics in every app
+        const isSuperadmin = user.role === 'superadmin' || appRole === 'superadmin'
+        const clinicIds: string[] | 'ALL' = isSuperadmin ? 'ALL' : (clinicIdsByApp[appId] ?? 'ALL')
 
         // All sub-apps (including fichaje, now Next.js on Vercel) use /api/sync/user.
         const syncPath = '/api/sync/user'
@@ -150,7 +133,7 @@ export async function pushUserToApps(user: {
               name:                    user.name,
               role:                    appRole,
               company_slug:            companySlug,
-              clinic_ids:              clinicIdsByApp[appId] ?? 'ALL',
+              clinic_ids:              clinicIds,
               subscription_plan:       user.subscription_plan,
               subscription_expires_at: user.subscription_expires_at,
               max_clinics:             user.max_clinics,
