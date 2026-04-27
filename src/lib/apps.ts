@@ -195,6 +195,18 @@ export const APPS: AppDef[] = [
     category: 'CRM',
   },
   {
+    id: 'sync-adapter',
+    name: 'Sync Adapter',
+    description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
+    icon: 'RefreshCw',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_SYNC_ADAPTER || 'https://impulsodent-sync-adapter.vercel.app',
+    status: 'active',
+    category: 'Administración',
+    adminOnly: true,
+  },
+  {
     id: 'integrations',
     name: 'Integraciones',
     description: 'Gestiona conectores, claves API y sincronización entre Hub y sub-aplicativos. Sólo administradores.',
