@@ -4,17 +4,21 @@ import { hashSync } from 'bcryptjs'
 const prisma = new PrismaClient()
 
 const APPS = [
-  { app_id: 'clinicpnl',     name: 'ClinicPNL' },
-  { app_id: 'clinicvox',     name: 'ClinicVox' },
-  { app_id: 'dentalspot',    name: 'DentalSpot' },
-  { app_id: 'spendflow',     name: 'SpendFlow' },
-  { app_id: 'fichaje',       name: 'Fichaje' },
-  { app_id: 'zentrix',       name: 'Zentrix' },
-  { app_id: 'nexuserp',      name: 'NexusERP' },
-  { app_id: 'dentalhr',      name: 'DentalHR' },
-  { app_id: 'dentalreports', name: 'DentalReports' },
-  { app_id: 'nexora',        name: 'Nexora' },
-  { app_id: 'dental-leads',  name: 'Dental Leads' },
+  { app_id: 'clinicpnl',         name: 'ClinicPNL' },
+  { app_id: 'clinicvox',         name: 'ClinicVox' },
+  { app_id: 'spendflow',         name: 'SpendFlow' },
+  { app_id: 'fichaje',           name: 'Fichaje' },
+  { app_id: 'zentrix',           name: 'Zentrix' },
+  { app_id: 'dentalhr',          name: 'DentalHR' },
+  { app_id: 'dentalreports',     name: 'DentalReports' },
+  { app_id: 'nexora',            name: 'Nexora' },
+  { app_id: 'clinicrefunds',     name: 'ClinicRefunds' },
+  { app_id: 'clinicstock',       name: 'ClinicStock' },
+  { app_id: 'clinicflow',        name: 'ClinicFlow OS' },
+  { app_id: 'impulsodent-crm',   name: 'Impulsodent CRM' },
+  { app_id: 'impulsodent-talent',name: 'Impulsodent Talent' },
+  { app_id: 'clinicnps',         name: 'ImpulsoNPS' },
+  { app_id: 'clinicleads',       name: 'ClinicLeads' },
 ]
 
 async function main() {

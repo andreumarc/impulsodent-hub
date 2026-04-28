@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Bell, LogOut, ShieldCheck } from 'lucide-react'
+import { LogOut, ShieldCheck } from 'lucide-react'
 import { BrandLogo } from '@/components/common/BrandLogo'
+import NotificationBell from '@/components/layout/NotificationBell'
 import type { SessionUser } from '@/lib/auth'
 
 interface TopbarProps {
@@ -46,11 +47,8 @@ export default function Topbar({ user }: TopbarProps) {
         </Link>
       )}
 
-      {/* Bell */}
-      <button className="relative p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-        <Bell className="w-5 h-5" />
-        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white" />
-      </button>
+      {/* Notifications bell */}
+      <NotificationBell />
 
       {/* Divider */}
       <div className="h-8 w-px bg-gray-200" />
