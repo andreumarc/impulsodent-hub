@@ -35,6 +35,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   crm:                process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
   clinicnps:          process.env.NEXT_PUBLIC_URL_CLINICNPS,
   clinicleads:        process.env.NEXT_PUBLIC_URL_CLINICLEADS,
+  'sync-adapter':     process.env.NEXT_PUBLIC_URL_SYNC_ADAPTER,
 }
 
 /**
@@ -77,6 +78,7 @@ export const APP_SSO_PATHS: Record<string, string> = {
   talent:              '/api/sso',           // alias used by launcher (appId='talent')
   clinicnps:           '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   clinicleads:         '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  'sync-adapter':      '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
 }
 
 /** Convenience helper: filter to entries that have a non-empty URL configured. */
