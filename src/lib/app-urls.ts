@@ -72,7 +72,9 @@ export const APP_SSO_PATHS: Record<string, string> = {
   clinicstock:         '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   clinicflow:          '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   'impulsodent-crm':   '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  crm:                 '/api/sso',           // alias used by launcher (appId='crm')
   'impulsodent-talent':'/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  talent:              '/api/sso',           // alias used by launcher (appId='talent')
   clinicnps:           '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   clinicleads:         '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
 }
