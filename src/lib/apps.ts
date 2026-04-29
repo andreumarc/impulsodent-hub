@@ -179,7 +179,7 @@ export const APPS: AppDef[] = [
     icon: 'ScanSearch',
     color: '#0D9488',
     bgColor: '#ccfbf1',
-    url: process.env.NEXT_PUBLIC_URL_DUEDILIGENCE || 'https://impulsodent-due.vercel.app',
+    url: process.env.NEXT_PUBLIC_URL_DUEDILIGENCE || 'https://due.impulsodent.com',
     status: 'active',
     category: 'Financiero',
     badge: 'Nuevo',
