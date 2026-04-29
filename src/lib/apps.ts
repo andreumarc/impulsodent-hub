@@ -173,6 +173,18 @@ export const APPS: AppDef[] = [
     category: 'CRM',
   },
   {
+    id: 'duediligence',
+    name: 'Due Diligence',
+    description: 'Due diligence dental: EBITDA normalizado, valoración M&A, scoring 0-100, red flags y simulador de negociación.',
+    icon: 'ScanSearch',
+    color: '#0D9488',
+    bgColor: '#ccfbf1',
+    url: process.env.NEXT_PUBLIC_URL_DUEDILIGENCE || 'https://impulsodent-due.vercel.app',
+    status: 'active',
+    category: 'Financiero',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',

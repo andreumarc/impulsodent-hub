@@ -36,6 +36,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   clinicnps:          process.env.NEXT_PUBLIC_URL_CLINICNPS,
   clinicleads:        process.env.NEXT_PUBLIC_URL_CLINICLEADS,
   'sync-adapter':     process.env.NEXT_PUBLIC_URL_SYNC_ADAPTER,
+  duediligence:       process.env.NEXT_PUBLIC_URL_DUEDILIGENCE ?? 'https://impulsodent-due.vercel.app',
 }
 
 /**
@@ -54,6 +55,7 @@ export const APP_IDS_WITH_CLINICS: ReadonlyArray<string> = [
   'clinicstock',
   'clinicflow',
   'impulsodent-crm',
+  'duediligence',
 ]
 
 /**
@@ -79,6 +81,7 @@ export const APP_SSO_PATHS: Record<string, string> = {
   clinicnps:           '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   clinicleads:         '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   'sync-adapter':      '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  duediligence:        '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
 }
 
 /** Convenience helper: filter to entries that have a non-empty URL configured. */
