@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getCompany, updateCompany, deleteCompany, getCompanyAppAccess } from '@/lib/db'
+import { getCompany, updateCompany, deleteCompany, getCompanyAppAccess, setCompanyAppAccess } from '@/lib/db'
 import { pushCompanyToApps } from '@/lib/sync'
 import { hasPermission } from '@/lib/permissions'
 
@@ -23,8 +23,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!await requireCompaniesManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
   const body = await req.json()
+  // Strip non-Company columns the GET added (appIds is a join-table projection)
+  // and immutable fields the form re-sends.
+  const { appIds, id: _bodyId, created_at, updated_at, users, appAccess, syncLogs, clinics, userAccess, ...companyFields } = body as Record<string, unknown>
+  void _bodyId; void created_at; void updated_at; void users; void appAccess; void syncLogs; void clinics; void userAccess
   try {
-    const updated = await updateCompany(id, body)
+    const updated = await updateCompany(id, companyFields)
+    if (Array.isArray(appIds)) {
+      await setCompanyAppAccess(id, appIds.filter((x): x is string => typeof x === 'string'))
+    }
     pushCompanyToApps({
       slug: updated.slug,
       name: updated.name,
