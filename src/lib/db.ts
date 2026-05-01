@@ -384,9 +384,21 @@ export async function createClinic(input: {
   company_id: string
   active?: boolean
 }): Promise<HubClinic> {
-  return prisma.clinic.create({
+  const clinic = await prisma.clinic.create({
     data: { ...input, active: input.active ?? true },
   })
+  // Auto-link every superadmin to the new clinic so they retain full coverage.
+  const supers = await prisma.hubUser.findMany({
+    where: { role: 'superadmin' },
+    select: { id: true },
+  })
+  if (supers.length > 0) {
+    await prisma.userClinicAccess.createMany({
+      data: supers.map((u) => ({ user_id: u.id, clinic_id: clinic.id })),
+      skipDuplicates: true,
+    })
+  }
+  return clinic
 }
 
 export async function deleteClinic(id: string): Promise<void> {
