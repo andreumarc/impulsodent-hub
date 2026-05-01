@@ -29,12 +29,14 @@ export interface HubUser {
   company_id: string | null
   active: boolean
   clinic_access_all: boolean
+  company_access_all: boolean
   subscription_plan: string
   subscription_expires_at: string | null
   max_clinics: number
   created_at: string
   updated_at: string
   company?: Pick<Company, 'id' | 'name' | 'slug'>
+  companies: Array<Pick<Company, 'id' | 'name' | 'slug'>>
 }
 
 export interface AppAccess {
@@ -83,18 +85,22 @@ function serializeCompany(c: {
 
 function serializeUser(u: {
   id: string; email: string; password_hash: string; name: string; role: string
-  company_id: string | null; active: boolean; clinic_access_all?: boolean
+  company_id: string | null; active: boolean; clinic_access_all?: boolean; company_access_all?: boolean
   subscription_plan: string; subscription_expires_at: Date | null; max_clinics: number
   created_at: Date; updated_at: Date
   company?: { id: string; name: string; slug: string } | null
+  companyAccess?: Array<{ company: { id: string; name: string; slug: string } }>
 }): HubUser {
+  const companies = u.companyAccess?.map((ca) => ca.company) ?? (u.company ? [u.company] : [])
   return {
     ...u,
     clinic_access_all: u.clinic_access_all !== false,
+    company_access_all: u.company_access_all === true,
     subscription_expires_at: u.subscription_expires_at?.toISOString() ?? null,
     created_at: u.created_at.toISOString(),
     updated_at: u.updated_at.toISOString(),
     company: u.company ?? undefined,
+    companies,
   }
 }
 
@@ -208,7 +214,10 @@ export async function setCompanyAppAccess(companyId: string, appIds: string[]): 
 export async function listUsers(): Promise<HubUser[]> {
   const rows = await prisma.hubUser.findMany({
     orderBy: { name: 'asc' },
-    include: { company: { select: { id: true, name: true, slug: true } } },
+    include: {
+      company: { select: { id: true, name: true, slug: true } },
+      companyAccess: { include: { company: { select: { id: true, name: true, slug: true } } } },
+    },
   })
   return rows.map(serializeUser)
 }

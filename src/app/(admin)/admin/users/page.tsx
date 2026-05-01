@@ -15,11 +15,56 @@ const PLAN_COLORS: Record<string, string> = {
 interface HubUser {
   id: string; name: string; email: string; role: string; active: boolean
   created_at: string; company: { id: string; name: string; slug: string } | null
+  companies?: Array<{ id: string; name: string; slug: string }>
+  company_access_all?: boolean
   subscription_plan: string; subscription_expires_at: string | null
 }
 
 function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
+}
+
+function CompaniesCell({ user }: { user: HubUser }) {
+  const list = user.companies ?? (user.company ? [user.company] : [])
+  // Superadmin or company_access_all → "Todas"
+  if (user.role === 'superadmin' || user.company_access_all) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-100 text-brand-700">
+        Todas
+        {list.length > 0 && <span className="opacity-60">({list.length})</span>}
+      </span>
+    )
+  }
+  if (list.length === 0) return <span className="text-sm text-gray-400">—</span>
+  if (list.length === 1) {
+    const c = list[0]
+    return (
+      <Link href={`/admin/companies/${c.id}`} className="text-sm text-brand-600 hover:underline font-medium">
+        {c.name}
+      </Link>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {list.slice(0, 2).map((c) => (
+        <Link
+          key={c.id}
+          href={`/admin/companies/${c.id}`}
+          className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+        >
+          {c.name}
+        </Link>
+      ))}
+      {list.length > 2 && (
+        <span
+          className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 text-gray-500"
+          title={list.slice(2).map((c) => c.name).join(', ')}
+        >
+          +{list.length - 2}
+        </span>
+      )}
+    </div>
+  )
 }
 
 function formatDate(iso: string) {
@@ -305,12 +350,7 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
-                      {u.company ? (
-                        <Link href={`/admin/companies/${u.company.id}`}
-                          className="text-sm text-brand-600 hover:underline font-medium">
-                          {u.company.name}
-                        </Link>
-                      ) : <span className="text-sm text-gray-400">—</span>}
+                      <CompaniesCell user={u} />
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${u.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
