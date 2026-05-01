@@ -146,6 +146,30 @@ export async function createCompany(input: {
         : {}),
     },
   })
+
+  // Auto-grant access to every non-internal catalog app so the clinic editor
+  // shows them by default. Idempotent (skipDuplicates).
+  const { APPS } = await import('./apps')
+  const appIds = APPS.filter((a) => !a.internal).map((a) => a.id)
+  if (appIds.length > 0) {
+    await prisma.companyAppAccess.createMany({
+      data: appIds.map((app_id) => ({ company_id: row.id, app_id })),
+      skipDuplicates: true,
+    })
+  }
+
+  // Auto-link every superadmin to the new company so they retain full coverage.
+  const supers = await prisma.hubUser.findMany({
+    where: { role: 'superadmin' },
+    select: { id: true },
+  })
+  if (supers.length > 0) {
+    await prisma.userCompanyAccess.createMany({
+      data: supers.map((u) => ({ user_id: u.id, company_id: row.id })),
+      skipDuplicates: true,
+    })
+  }
+
   return serializeCompany(row)
 }
 
