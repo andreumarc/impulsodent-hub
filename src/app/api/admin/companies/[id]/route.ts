@@ -25,8 +25,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json()
   // Strip non-Company columns the GET added (appIds is a join-table projection)
   // and immutable fields the form re-sends.
-  const { appIds, id: _bodyId, created_at, updated_at, users, appAccess, syncLogs, clinics, userAccess, ...companyFields } = body as Record<string, unknown>
+  const { appIds, id: _bodyId, created_at, updated_at, users, appAccess, syncLogs, clinics, userAccess, subscription_expires_at: rawExpires, ...companyFields } = body as Record<string, unknown>
   void _bodyId; void created_at; void updated_at; void users; void appAccess; void syncLogs; void clinics; void userAccess
+  // Coerce empty/invalid date strings to null
+  let expiresAt: Date | null | undefined = undefined
+  if (typeof rawExpires === 'string') {
+    if (!rawExpires.trim()) {
+      expiresAt = null
+    } else {
+      const d = new Date(rawExpires)
+      expiresAt = isNaN(d.getTime()) ? null : d
+    }
+  } else if (rawExpires === null) {
+    expiresAt = null
+  }
+  // Optional string fields: '' → null
+  for (const k of ['cif', 'city', 'email', 'phone', 'address']) {
+    if (companyFields[k] === '') companyFields[k] = null
+  }
+  if (expiresAt !== undefined) (companyFields as Record<string, unknown>).subscription_expires_at = expiresAt
   try {
     const updated = await updateCompany(id, companyFields)
     if (Array.isArray(appIds)) {

@@ -3,20 +3,7 @@ import { getSession } from '@/lib/auth'
 import { listCompaniesWithStats, createCompany, upsertExternalCompany } from '@/lib/db'
 import { pushCompanyToApps } from '@/lib/sync'
 import { hasPermission } from '@/lib/permissions'
-
-const APP_URLS: Record<string, string | undefined> = {
-  clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
-  dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
-  dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
-  fichaje:       process.env.NEXT_PUBLIC_URL_FICHAJE,
-  zentrix:       process.env.NEXT_PUBLIC_URL_ZENTRIX,
-  spendflow:     process.env.NEXT_PUBLIC_URL_SPENDFLOW,
-  clinicvox:     process.env.NEXT_PUBLIC_URL_CLINICVOX,
-  dentalspot:    process.env.NEXT_PUBLIC_URL_DENTALSPOT,
-  clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
-}
+import { APP_URLS } from '@/lib/app-urls'
 
 async function requireCompaniesManage() {
   const session = await getSession()
@@ -93,17 +80,24 @@ export async function POST(req: NextRequest) {
 
   if (!name || !slug) return NextResponse.json({ error: 'name y slug son obligatorios' }, { status: 400 })
 
+  // Coerce empty / invalid date strings to null so Prisma doesn't choke.
+  let expiresAt: string | null = null
+  if (subscription_expires_at) {
+    const d = new Date(subscription_expires_at)
+    if (!isNaN(d.getTime())) expiresAt = d.toISOString()
+  }
+
   try {
     const company = await createCompany({
       name,
       slug: slug.toLowerCase().replace(/\s+/g, '-'),
-      cif,
-      city,
-      email,
-      phone,
-      address,
+      cif: cif || null,
+      city: city || null,
+      email: email || null,
+      phone: phone || null,
+      address: address || null,
       subscription_plan,
-      subscription_expires_at,
+      subscription_expires_at: expiresAt,
       max_clinics,
       max_users,
     })
