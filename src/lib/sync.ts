@@ -121,6 +121,21 @@ export async function pushUserToApps(user: {
         // All sub-apps (including fichaje, now Next.js on Vercel) use /api/sync/user.
         const syncPath = '/api/sync/user'
         const url = `${appUrl}${syncPath}`
+        // Some sub-app schemas (DueDiligence, Nexora) treat .optional() as
+        // "field absent" only — passing null fails validation. Omit null/undefined.
+        const payload: Record<string, unknown> = {
+          email:        user.email,
+          name:         user.name,
+          role:         appRole,
+          company_slug: companySlug,
+          clinic_ids:   clinicIds,
+          hub_token:    token,
+        }
+        if (user.subscription_plan != null)       payload.subscription_plan       = user.subscription_plan
+        if (user.subscription_expires_at != null) payload.subscription_expires_at = user.subscription_expires_at
+        if (user.max_clinics != null)             payload.max_clinics             = user.max_clinics
+        if (user.active != null)                  payload.active                  = user.active
+        if (user.password)                        payload.password                = user.password
         try {
           const res = await fetch(url, {
             method: 'POST',
@@ -128,19 +143,7 @@ export async function pushUserToApps(user: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${secret}`,
             },
-            body: JSON.stringify({
-              email:                   user.email,
-              name:                    user.name,
-              role:                    appRole,
-              company_slug:            companySlug,
-              clinic_ids:              clinicIds,
-              subscription_plan:       user.subscription_plan,
-              subscription_expires_at: user.subscription_expires_at,
-              max_clinics:             user.max_clinics,
-              active:                  user.active,
-              password:                user.password,
-              hub_token:               token,
-            }),
+            body: JSON.stringify(payload),
           })
           if (!res.ok) {
             const body = await res.text().catch(() => '')
