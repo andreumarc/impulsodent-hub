@@ -377,6 +377,39 @@ export async function setUserClinicAccessAll(userId: string, all: boolean): Prom
   if (all) await prisma.userClinicAccess.deleteMany({ where: { user_id: userId } })
 }
 
+// ─── User × Company access (multi-company) ────────────────────────────────────
+
+export async function getUserCompanyAccess(userId: string): Promise<string[]> {
+  const rows = await prisma.userCompanyAccess.findMany({
+    where: { user_id: userId },
+    select: { company_id: true },
+  })
+  return rows.map((r) => r.company_id)
+}
+
+export async function setUserCompanyAccess(userId: string, companyIds: string[]): Promise<void> {
+  await prisma.userCompanyAccess.deleteMany({ where: { user_id: userId } })
+  if (companyIds.length === 0) return
+  await prisma.userCompanyAccess.createMany({
+    data: companyIds.map((company_id) => ({ user_id: userId, company_id })),
+    skipDuplicates: true,
+  })
+}
+
+export async function setUserCompanyAccessAll(userId: string, all: boolean): Promise<void> {
+  await prisma.hubUser.update({ where: { id: userId }, data: { company_access_all: all } })
+  if (all) {
+    const allCompanies = await prisma.company.findMany({ select: { id: true } })
+    await prisma.userCompanyAccess.deleteMany({ where: { user_id: userId } })
+    if (allCompanies.length > 0) {
+      await prisma.userCompanyAccess.createMany({
+        data: allCompanies.map((c) => ({ user_id: userId, company_id: c.id })),
+        skipDuplicates: true,
+      })
+    }
+  }
+}
+
 export async function createClinic(input: {
   external_id: string
   app_id: string

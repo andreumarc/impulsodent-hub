@@ -28,8 +28,23 @@ async function main() {
 
     await prisma.hubUser.update({
       where: { id: u.id },
-      data: { clinic_access_all: true, active: true },
+      data: { clinic_access_all: true, company_access_all: true, active: true },
     });
+
+    // Link to every company
+    const existingCompanies = await prisma.userCompanyAccess.findMany({
+      where: { user_id: u.id },
+      select: { company_id: true },
+    });
+    const haveCompanies = new Set(existingCompanies.map((e) => e.company_id));
+    const newCompanies = companies.filter((c) => !haveCompanies.has(c.id));
+    if (newCompanies.length > 0) {
+      await prisma.userCompanyAccess.createMany({
+        data: newCompanies.map((c) => ({ user_id: u.id, company_id: c.id })),
+        skipDuplicates: true,
+      });
+      console.log(`  + linked ${newCompanies.length} new companies`);
+    }
 
     // Idempotent inserts: skip duplicates
     const existing = await prisma.userClinicAccess.findMany({

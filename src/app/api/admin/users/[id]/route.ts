@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { getSession } from '@/lib/auth'
-import { getUser, updateUser, deleteUser, getUserAppRoles, setUserAppRoles, getUserClinicAccess, setUserClinicAccess, setUserClinicAccessAll } from '@/lib/db'
+import { getUser, updateUser, deleteUser, getUserAppRoles, setUserAppRoles, getUserClinicAccess, setUserClinicAccess, setUserClinicAccessAll, getUserCompanyAccess, setUserCompanyAccess, setUserCompanyAccessAll } from '@/lib/db'
 import { pushUserToApps } from '@/lib/sync'
 import { hasPermission } from '@/lib/permissions'
 
@@ -27,7 +27,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!await requireUserAccess(id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const user = await getUser(id)
   if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  const [appRoles, clinics] = await Promise.all([getUserAppRoles(id), getUserClinicAccess(id)])
+  const [appRoles, clinics, companyIds] = await Promise.all([
+    getUserAppRoles(id),
+    getUserClinicAccess(id),
+    getUserCompanyAccess(id),
+  ])
   return NextResponse.json({
     ...user,
     password_hash: undefined,
@@ -38,6 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       clinic_ids: r.clinic_ids ?? [],
     })),
     clinic_ids: clinics.map((c) => c.id),
+    company_ids: companyIds,
   })
 }
 
@@ -46,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const session = await requireUserAccess(id)
   if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await req.json()
-  const { password, app_roles, clinic_access_all, clinic_ids, ...rest } = body
+  const { password, app_roles, clinic_access_all, clinic_ids, company_ids, company_access_all, ...rest } = body
 
   // Admin cannot escalate role to superadmin or reassign company
   if (session.role === 'admin') {
@@ -63,8 +68,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (password) update.password_hash = await bcrypt.hash(password, 10)
   if (typeof clinic_access_all === 'boolean') update.clinic_access_all = clinic_access_all
 
+  // Multi-company: if caller sent `company_ids`, treat as the canonical source.
+  // Persist primary `company_id` as the first id (legacy joins). Superadmin only.
+  let multiCompanyIds: string[] | null = null
+  if (Array.isArray(company_ids)) {
+    multiCompanyIds = company_ids.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0)
+    if (session.role === 'admin') {
+      const cross = multiCompanyIds.some((c) => c !== session.companyId)
+      if (cross || company_access_all === true) {
+        return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
+      }
+    }
+    update.company_id = multiCompanyIds[0] || null
+  }
+
   try {
     const updated = await updateUser(id, update)
+
+    if (multiCompanyIds) {
+      if (company_access_all === true) {
+        await setUserCompanyAccessAll(id, true)
+      } else {
+        await setUserCompanyAccessAll(id, false)
+        await setUserCompanyAccess(id, multiCompanyIds)
+      }
+    }
 
     type AppRoleInput = { app_id: string; role: string; clinic_access_all?: boolean; clinic_ids?: string[] }
     const legacyAll = clinic_access_all !== false

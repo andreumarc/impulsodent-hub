@@ -29,8 +29,21 @@ model Company {
   appAccess  CompanyAppAccess[]
   syncLogs   SyncLog[]
   clinics    Clinic[]
+  userAccess UserCompanyAccess[]
 
   @@map("companies")
+}
+
+model UserCompanyAccess {
+  user_id    String
+  company_id String
+  granted_at DateTime @default(now())
+
+  user    HubUser @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, company_id])
+  @@map("user_company_access")
 }
 
 model Clinic {
@@ -71,6 +84,7 @@ model HubUser {
   company_id              String?
   active                  Boolean   @default(true)
   clinic_access_all       Boolean   @default(true)
+  company_access_all      Boolean   @default(false)
   subscription_plan       String    @default("free")
   subscription_expires_at DateTime?
   max_clinics             Int       @default(5)
@@ -80,6 +94,7 @@ model HubUser {
   company       Company?           @relation(fields: [company_id], references: [id], onDelete: SetNull)
   appRoles      UserAppRole[]
   clinicAccess  UserClinicAccess[]
+  companyAccess UserCompanyAccess[]
   notifications Notification[]
 
   @@map("hub_users")

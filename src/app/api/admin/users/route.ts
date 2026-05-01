@@ -4,26 +4,13 @@ import { getSession } from '@/lib/auth'
 import {
   listUsers, createUser, getUserByEmail,
   setUserAppRoles, setUserClinicAccess, setUserClinicAccessAll,
+  setUserCompanyAccess, setUserCompanyAccessAll,
   upsertExternalUser,
 } from '@/lib/db'
 import { getInitials } from '@/lib/utils'
 import { pushUserToApps } from '@/lib/sync'
 import { hasPermission, canCreateRole, type HubRole } from '@/lib/permissions'
-
-const APP_URLS: Record<string, string | undefined> = {
-  clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
-  dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
-  dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
-  fichaje:       process.env.NEXT_PUBLIC_URL_FICHAJE,
-  zentrix:       process.env.NEXT_PUBLIC_URL_ZENTRIX,
-  spendflow:     process.env.NEXT_PUBLIC_URL_SPENDFLOW,
-  clinicvox:     process.env.NEXT_PUBLIC_URL_CLINICVOX,
-  dentalspot:    process.env.NEXT_PUBLIC_URL_DENTALSPOT,
-  clinicrefunds: process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  clinicstock:   process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
-  clinicnps:     process.env.NEXT_PUBLIC_URL_CLINICNPS,
-}
+import { APP_URLS } from '@/lib/app-urls'
 
 async function requireSuperadmin() {
   const session = await getSession()
@@ -120,7 +107,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   let { company_id } = body
-  const { email, password, name, role, app_roles, subscription_plan, subscription_expires_at, max_clinics, clinic_access_all, clinic_ids } = body
+  const { email, password, name, role, app_roles, subscription_plan, subscription_expires_at, max_clinics, clinic_access_all, clinic_ids, company_ids, company_access_all } = body
 
   if (!email || !password || !name || !role) {
     return NextResponse.json({ error: 'email, password, name y role son obligatorios' }, { status: 400 })
@@ -131,13 +118,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `No puedes crear usuarios con rol ${role}` }, { status: 403 })
   }
 
+  // Resolve final companies: prefer multi (`company_ids` + `company_access_all`),
+  // fall back to legacy single `company_id` for older clients.
+  let finalCompanyIds: string[] = Array.isArray(company_ids)
+    ? company_ids.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0)
+    : (company_id ? [company_id] : [])
+  const finalCompanyAccessAll = company_access_all === true
+
   // Non-superadmin actors are scoped to their own company
   if (session.role !== 'superadmin') {
     if (!session.companyId) return NextResponse.json({ error: 'Usuario sin empresa asignada' }, { status: 403 })
-    if (company_id && company_id !== session.companyId) {
+    const cross = finalCompanyIds.some((c) => c !== session.companyId)
+    if (cross || finalCompanyAccessAll) {
       return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
     }
+    finalCompanyIds = [session.companyId]
     company_id = session.companyId
+  } else {
+    // Primary company_id stored on the user row = first selected (for legacy joins).
+    company_id = finalCompanyIds[0] || null
   }
 
   const existing = await getUserByEmail(email)
@@ -171,6 +170,14 @@ export async function POST(req: NextRequest) {
       clinic_access_all: typeof r.clinic_access_all === 'boolean' ? r.clinic_access_all : legacyAll,
       clinic_ids: Array.isArray(r.clinic_ids) ? r.clinic_ids : legacyIds,
     }))
+
+  // Persist multi-company access
+  if (finalCompanyAccessAll) {
+    await setUserCompanyAccessAll(user.id, true)
+  } else {
+    await setUserCompanyAccessAll(user.id, false)
+    if (finalCompanyIds.length > 0) await setUserCompanyAccess(user.id, finalCompanyIds)
+  }
 
   // Persist per-app roles + clinic scope
   if (normalized.length > 0) await setUserAppRoles(user.id, normalized)

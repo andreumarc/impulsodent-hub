@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Eye, EyeOff, ChevronDown, Building2, RefreshCw, Stethoscope } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 import { APP_ROLES, HUB_ROLES } from '@/lib/roles'
+import { CompanyMultiSelect } from '@/components/admin/CompanyMultiSelect'
 
 interface Company { id: string; name: string }
 interface HubClinic { id: string; external_id: string; app_id: string; name: string }
@@ -16,6 +17,8 @@ export default function NewUserPage() {
   const [clinics, setClinics] = useState<HubClinic[]>([])
   const [loadingClinics, setLoadingClinics] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', company_id: '', subscription_plan: 'free', subscription_expires_at: '', max_clinics: 5 })
+  const [companyIds, setCompanyIds] = useState<string[]>([])
+  const [companyAccessAll, setCompanyAccessAll] = useState(false)
   const [appRoles, setAppRoles] = useState<Record<string, string>>({})
   const [clinicAccessAll, setClinicAccessAll] = useState(true)
   const [selectedExternalIds, setSelectedExternalIds] = useState<string[]>([])
@@ -39,13 +42,22 @@ export default function NewUserPage() {
     }
   }, [])
 
+  // Primary company for clinic fetching = first selected (or all-access uses any company).
+  const primaryCompanyId = companyAccessAll
+    ? (companies[0]?.id ?? '')
+    : (companyIds[0] ?? '')
+
   useEffect(() => {
-    if (!form.company_id) { setClinics([]); return }
+    setForm((f) => ({ ...f, company_id: primaryCompanyId }))
+  }, [primaryCompanyId])
+
+  useEffect(() => {
+    if (!primaryCompanyId) { setClinics([]); return }
     ;(async () => {
-      await fetchClinics(form.company_id)
-      await fetchClinics(form.company_id, true)
+      await fetchClinics(primaryCompanyId)
+      await fetchClinics(primaryCompanyId, true)
     })()
-  }, [form.company_id, fetchClinics])
+  }, [primaryCompanyId, fetchClinics])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -73,7 +85,9 @@ export default function NewUserPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          company_id: form.company_id || null,
+          company_id: primaryCompanyId || null,
+          company_ids: companyAccessAll ? companies.map((c) => c.id) : companyIds,
+          company_access_all: companyAccessAll,
           app_roles,
           clinic_access_all: clinicAccessAll,
           clinic_ids: globalClinicIds,
@@ -148,14 +162,13 @@ export default function NewUserPage() {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-700">Empresa</label>
-              <div className="relative">
-                <select value={form.company_id} onChange={(e) => setForm((f) => ({ ...f, company_id: e.target.value }))}
-                  className="w-full appearance-none px-3 py-2 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
-                  <option value="">Sin empresa</option>
-                  {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              </div>
+              <CompanyMultiSelect
+                companies={companies}
+                selectedIds={companyIds}
+                onChange={setCompanyIds}
+                accessAll={companyAccessAll}
+                onAccessAllChange={setCompanyAccessAll}
+              />
             </div>
           </div>
         </div>
