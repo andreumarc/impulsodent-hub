@@ -37,6 +37,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   clinicleads:        process.env.NEXT_PUBLIC_URL_CLINICLEADS,
   'sync-adapter':     process.env.NEXT_PUBLIC_URL_SYNC_ADAPTER,
   duediligence:       process.env.NEXT_PUBLIC_URL_DUEDILIGENCE ?? 'https://due.impulsodent.com',
+  ddc:                process.env.NEXT_PUBLIC_URL_DDC ?? 'https://ddc.impulsodent.com',
 }
 
 /**
