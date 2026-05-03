@@ -186,24 +186,46 @@ export async function pushUserToApps(user: {
         if (user.active != null)                  payload.active                  = user.active
         if (user.password)                        payload.password                = user.password
         if (user.password_hash && !user.password) payload.password_hash           = user.password_hash
-        try {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${secret}`,
-            },
-            body: JSON.stringify(payload),
-          })
-          if (!res.ok) {
+        // Retry con backoff exponencial: 3 intentos. Cubre los casos típicos
+        // en los que el sub-app está deployando o reiniciando un instante,
+        // y la network falla transitoriamente. Si los 3 intentos fallan,
+        // el resync masivo (rehydrate-all-apps) es el fallback definitivo.
+        const attempts = 3
+        const delays = [0, 1000, 4000]
+        let lastErr: string | null = null
+        for (let i = 0; i < attempts; i++) {
+          if (delays[i]) await new Promise((r) => setTimeout(r, delays[i]))
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${secret}`,
+              },
+              body: JSON.stringify(payload),
+              // 8s hard cap to avoid blocking.
+              signal: AbortSignal.timeout(8000),
+            })
+            if (res.ok) {
+              if (i > 0) console.log('[sync] ok-after-retry', { app_id: appId, attempt: i + 1 })
+              else console.log('[sync] ok', { app_id: appId, url })
+              lastErr = null
+              break
+            }
             const body = await res.text().catch(() => '')
-            console.error('[sync] non-ok response', { app_id: appId, url, status: res.status, body: body.slice(0, 200) })
-          } else {
-            console.log('[sync] ok', { app_id: appId, url })
+            lastErr = `${res.status} ${body.slice(0, 150)}`
+            // 4xx (auth, bad request) → no reintentar
+            if (res.status >= 400 && res.status < 500) {
+              console.error('[sync] 4xx, no retry', { app_id: appId, status: res.status, body: lastErr })
+              break
+            }
+          } catch (err) {
+            const e = err as { name?: string; message?: string }
+            lastErr = `${e?.name ?? 'err'}: ${e?.message ?? String(err)}`
           }
-        } catch (err) {
-          const e = err as { status?: number; message?: string }
-          console.error('[sync] failed', { app_id: appId, endpoint: url, status: e?.status, message: e?.message ?? String(err) })
+        }
+        if (lastErr) {
+          console.error('[sync] FAILED after retries', { app_id: appId, endpoint: url, lastErr })
         }
       }),
   )
