@@ -63,6 +63,16 @@ export default function NewUserPage() {
     e.preventDefault()
     setError(''); setLoading(true)
     try {
+      // Como deduplicamos en UI por nombre, un external_id seleccionado puede
+      // representar a varias filas Hub con el mismo nombre. Expandimos a la
+      // lista completa de external_ids "hermanos" antes de mapear a hub ids.
+      const namesByExtId = new Map<string, string>(clinics.map((c) => [c.external_id, c.name.trim().toLowerCase()]))
+      const selectedNames = new Set(selectedExternalIds.map((extId) => namesByExtId.get(extId) ?? ''))
+      const allSelectedExtIds = clinics
+        .filter((c) => selectedNames.has(c.name.trim().toLowerCase()))
+        .map((c) => c.external_id)
+      const allSelectedExtIdSet = new Set(allSelectedExtIds)
+
       // Map selected external_ids → hub clinic ids per app
       const app_roles = Object.entries(appRoles)
         .filter(([, role]) => role)
@@ -70,7 +80,7 @@ export default function NewUserPage() {
           const clinicIdsForApp = clinicAccessAll
             ? []
             : clinics
-                .filter((c) => c.app_id === app_id && selectedExternalIds.includes(c.external_id))
+                .filter((c) => c.app_id === app_id && allSelectedExtIdSet.has(c.external_id))
                 .map((c) => c.id)
           return { app_id, role, clinic_access_all: clinicAccessAll, clinic_ids: clinicIdsForApp }
         })
@@ -78,7 +88,7 @@ export default function NewUserPage() {
       // Legacy global fields: all hub ids matching any selected external_id
       const globalClinicIds = clinicAccessAll
         ? []
-        : clinics.filter((c) => selectedExternalIds.includes(c.external_id)).map((c) => c.id)
+        : clinics.filter((c) => allSelectedExtIdSet.has(c.external_id)).map((c) => c.id)
 
       const res = await fetch('/api/admin/users', {
         method: 'POST',
@@ -243,18 +253,39 @@ export function ClinicsSection(props: {
 }) {
   const { companyId, clinics, loadingClinics, onSync, accessAll, setAccessAll, selectedExternalIds, setSelectedExternalIds } = props
 
-  // Deduplicate clinics by external_id (one clinic replicated per app_id)
+  // Deduplicate clinics. La tabla `clinics` del Hub guarda una fila por
+  // (clínica física × app), pero además durante onboarding/sync se han
+  // creado a veces filas con external_id distintos pero el mismo nombre
+  // dentro de la misma empresa. Para la UI de selección, agrupamos por
+  // nombre normalizado: una clínica física = una opción. Como
+  // `external_id` representativo elegimos el primero alfabéticamente
+  // (estable entre renders) y la lista de apps acumula la unión.
   const uniqueClinics = useMemo(() => {
-    const map = new Map<string, { external_id: string; name: string; apps: string[] }>()
+    type Entry = { external_id: string; name: string; apps: string[]; allExternalIds: string[] }
+    const map = new Map<string, Entry>()
     for (const c of clinics) {
-      const existing = map.get(c.external_id)
+      const key = c.name.trim().toLowerCase()
+      const existing = map.get(key)
       if (existing) {
         if (!existing.apps.includes(c.app_id)) existing.apps.push(c.app_id)
+        existing.allExternalIds.push(c.external_id)
       } else {
-        map.set(c.external_id, { external_id: c.external_id, name: c.name, apps: [c.app_id] })
+        map.set(key, {
+          external_id: c.external_id,
+          name: c.name,
+          apps: [c.app_id],
+          allExternalIds: [c.external_id],
+        })
       }
     }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+    // external_id canónico: el menor lexicográfico de todos los duplicados.
+    return Array.from(map.values())
+      .map((e) => ({
+        external_id: [...e.allExternalIds].sort()[0],
+        name: e.name,
+        apps: e.apps,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [clinics])
 
   function toggle(extId: string) {

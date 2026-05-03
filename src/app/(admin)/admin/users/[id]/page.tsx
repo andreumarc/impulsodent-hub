@@ -104,20 +104,30 @@ export default function EditUserPage() {
     e.preventDefault()
     setError(''); setLoading(true)
     try {
+      // Expand selected external_ids to all sibling rows with the same name
+      // (UI deduplicates duplicate clinics by name).
+      const namesByExtId = new Map<string, string>(clinics.map((c) => [c.external_id, c.name.trim().toLowerCase()]))
+      const selectedNames = new Set(selectedExternalIds.map((extId) => namesByExtId.get(extId) ?? ''))
+      const allSelectedExtIdSet = new Set(
+        clinics
+          .filter((c) => selectedNames.has(c.name.trim().toLowerCase()))
+          .map((c) => c.external_id),
+      )
+
       const app_roles = Object.entries(appRoles)
         .filter(([, role]) => role)
         .map(([app_id, role]) => {
           const clinicIdsForApp = clinicAccessAll
             ? []
             : clinics
-                .filter((c) => c.app_id === app_id && selectedExternalIds.includes(c.external_id))
+                .filter((c) => c.app_id === app_id && allSelectedExtIdSet.has(c.external_id))
                 .map((c) => c.id)
           return { app_id, role, clinic_access_all: clinicAccessAll, clinic_ids: clinicIdsForApp }
         })
 
       const globalClinicIds = clinicAccessAll
         ? []
-        : clinics.filter((c) => selectedExternalIds.includes(c.external_id)).map((c) => c.id)
+        : clinics.filter((c) => allSelectedExtIdSet.has(c.external_id)).map((c) => c.id)
 
       const body: Record<string, unknown> = {
         name: form.name, email: form.email, role: form.role,
