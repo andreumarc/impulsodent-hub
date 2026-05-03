@@ -202,6 +202,7 @@ export async function POST(req: NextRequest) {
     max_clinics: user.max_clinics,
     active: user.active,
     password, // plain password — sub-apps hash locally
+    password_hash: user.password_hash, // fallback if plaintext absent (re-sync of existing users)
   }).catch(err => console.error('[sync] failed', { app_id: 'pushUserToApps', endpoint: 'users.POST', status: err?.status, message: err?.message ?? String(err) }))
 
   return NextResponse.json(

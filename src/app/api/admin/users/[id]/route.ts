@@ -140,6 +140,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       max_clinics: updated.max_clinics,
       active: updated.active,
       password: password || undefined, // only forwarded when changed
+      password_hash: updated.password_hash, // fallback if plaintext absent
     }).catch(err => console.error('[sync] failed', { app_id: 'pushUserToApps', endpoint: 'users[id].PUT', status: err?.status, message: err?.message ?? String(err) }))
 
     return NextResponse.json({ ...updated, password_hash: undefined, app_roles: appRoles, clinic_ids: clinics.map((c) => c.id) })
