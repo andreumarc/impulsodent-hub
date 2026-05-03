@@ -20,8 +20,18 @@ export async function GET() {
     getUser(session.id),
   ])
 
-  const accessible = new Set<string>(userRoles.map((r) => r.app_id))
+  // Si el admin ha tocado los toggles "Sin acceso / Rol" en el formulario
+  // del usuario (= existe al menos un user_app_roles), las decisiones
+  // por-usuario son las que mandan: ese usuario solo ve las apps que tiene
+  // explícitamente asignadas, aunque la empresa tenga otras habilitadas.
+  // Solo cuando no hay configuración por-usuario tomamos la herencia de
+  // empresa (caso de usuario recién creado sin tocar app_roles).
+  const userOnlyApps = userRoles.map((r) => r.app_id)
+  if (userOnlyApps.length > 0) {
+    return NextResponse.json({ appIds: userOnlyApps })
+  }
 
+  const accessible = new Set<string>()
   if (fullUser?.company_id) {
     const companyApps = await getCompanyAppAccess(fullUser.company_id)
     companyApps.forEach((id) => accessible.add(id))

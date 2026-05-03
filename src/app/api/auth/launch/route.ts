@@ -2,41 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT } from 'jose'
 import { getSession } from '@/lib/auth'
 import { getUserAppRoles, getCompany } from '@/lib/db'
-
-const APP_URLS: Record<string, string | undefined> = {
-  clinicpnl:          process.env.NEXT_PUBLIC_URL_CLINICPNL,
-  clinicvox:          process.env.NEXT_PUBLIC_URL_CLINICVOX,
-  dentalspot:         process.env.NEXT_PUBLIC_URL_DENTALSPOT,
-  spendflow:          process.env.NEXT_PUBLIC_URL_SPENDFLOW,
-  fichaje:            process.env.NEXT_PUBLIC_URL_FICHAJE,
-  zentrix:            process.env.NEXT_PUBLIC_URL_ZENTRIX,
-  nexuserp:           process.env.NEXT_PUBLIC_URL_NEXUSERP,
-  dentalhr:           process.env.NEXT_PUBLIC_URL_DENTALHR,
-  dentalreports:      process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  clinicrefunds:      process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  nexora:             process.env.NEXT_PUBLIC_URL_NEXORA,
-  clinicstock:        process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
-  'impulsodent-crm':  process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
-  clinicnps:          process.env.NEXT_PUBLIC_URL_CLINICNPS,
-}
-
-// Each app's SSO receiver path
-const APP_SSO_PATHS: Record<string, string> = {
-  clinicpnl:          '/api/auth/hub-sso',  // Supabase
-  clinicvox:          '/api/auth/hub-sso',  // NextAuth
-  dentalspot:         '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
-  spendflow:          '/sso',               // NestJS — needs client-side localStorage
-  fichaje:            '/sso',               // NestJS — needs client-side localStorage
-  zentrix:            '/api/auth/hub-sso',  // NextAuth
-  nexuserp:           '/sso',               // NestJS
-  dentalhr:           '/api/auth/hub-sso',  // Custom Prisma
-  dentalreports:      '/api/auth/hub-sso',  // Supabase
-  clinicrefunds:      '/api/auth/hub-sso',  // NextAuth
-  nexora:             '/api/auth/hub-sso',  // NextAuth
-  clinicstock:        '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
-  'impulsodent-crm':  '/api/sso',  // NextAuth v5 — outside [..nextauth] catch-all
-  clinicnps:          '/api/auth/hub-sso',
-}
+import { APP_URLS, APP_SSO_PATHS } from '@/lib/app-urls'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -52,26 +18,47 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Aplicación no configurada' }, { status: 404 })
   }
 
-  // Look up company slug for cross-app tenant filtering
+  // Look up company slug + name for cross-app tenant filtering / JIT company creation
   let companySlug: string | null = null
+  let companyName: string | null = null
   if (session.companyId) {
     const company = await getCompany(session.companyId)
     companySlug = company?.slug ?? null
+    companyName = company?.name ?? null
   }
 
-  // Get user's role and clinic access for this specific app
+  // Get user's role and clinic access for this specific app.
+  // ENFORCE: si no hay app_role para esta app o el rol está vacío
+  // ('Sin acceso'), denegar el launch — antes hacíamos fallback a
+  // session.role global, lo que dejaba entrar al usuario en TODAS
+  // las apps independientemente de los toggles "Sin acceso" del admin.
   let appRole = session.role === 'superadmin' ? 'superadmin' : ''
   let clinicIds: string[] | 'ALL' = 'ALL'
   if (session.role !== 'superadmin') {
     const appRoles = await getUserAppRoles(session.id)
     const appRoleRow = appRoles.find((r) => r.app_id === appId)
-    appRole = appRoleRow?.role ?? session.role
-    if (appRoleRow) {
-      clinicIds = appRoleRow.clinic_access_all ? 'ALL' : (appRoleRow.clinic_ids ?? [])
+    if (!appRoleRow || !appRoleRow.role || appRoleRow.role.trim() === '') {
+      // Redirigir al hub con un flash de error en query param.
+      const hubUrl = new URL('/dashboard', req.url)
+      hubUrl.searchParams.set('error', 'no_app_access')
+      hubUrl.searchParams.set('app', appId)
+      return NextResponse.redirect(hubUrl)
     }
+    appRole = appRoleRow.role
+    clinicIds = appRoleRow.clinic_access_all ? 'ALL' : (appRoleRow.clinic_ids ?? [])
   }
 
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET!)
+  // Audit 2026-05 — assert secret strength. An empty/short JWT_SECRET would
+  // produce HS256 tokens accepted by every sub-app (they verify with the same
+  // env var), so misconfigured deploys must fail loudly here.
+  const rawSecret = process.env.JWT_SECRET ?? ''
+  if (rawSecret.length < 32) {
+    return NextResponse.json(
+      { error: 'JWT_SECRET missing or too short (min 32 chars)' },
+      { status: 500 },
+    )
+  }
+  const secret = new TextEncoder().encode(rawSecret)
   const token = await new SignJWT({
     sub:          session.id,
     email:        session.email,
@@ -81,6 +68,7 @@ export async function GET(req: NextRequest) {
     app_id:       appId,
     company_id:   session.companyId ?? null,
     company_slug: companySlug,
+    company_name: companyName,
     clinic_ids:   clinicIds,
   })
     .setProtectedHeader({ alg: 'HS256' })
