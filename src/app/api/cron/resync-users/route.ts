@@ -18,12 +18,19 @@ import { pushUserToApps } from '@/lib/sync'
  *     aceptamos JWT_SECRET como fallback para poder triggerearlo manualmente.
  */
 export async function GET(request: NextRequest) {
-  const expected = process.env.CRON_SECRET ?? process.env.JWT_SECRET ?? ''
-  if (!expected) {
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+  // Aceptamos cualquiera de los dos: CRON_SECRET (Vercel auto-provisioned)
+  // o JWT_SECRET (mismo secret que firma los SSO tokens; práctico para
+  // triggers manuales con el Bearer que ya conocen las sub-apps).
+  const cronSecret = process.env.CRON_SECRET ?? ''
+  const jwtSecret = process.env.JWT_SECRET ?? ''
+  if (!cronSecret && !jwtSecret) {
+    return NextResponse.json({ error: 'No auth secret configured' }, { status: 500 })
   }
   const auth = request.headers.get('authorization')
-  if (auth !== `Bearer ${expected}`) {
+  const ok =
+    (cronSecret && auth === `Bearer ${cronSecret}`) ||
+    (jwtSecret && auth === `Bearer ${jwtSecret}`)
+  if (!ok) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
