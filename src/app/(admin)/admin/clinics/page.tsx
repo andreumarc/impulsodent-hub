@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, RefreshCw, Building2, ChevronDown, X, Stethoscope, Pencil, Save } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Building2, ChevronDown, X, Stethoscope, Pencil, Save, LayoutGrid, Check, Minus } from 'lucide-react'
 import { APPS } from '@/lib/apps'
 
 interface Clinic {
@@ -79,6 +79,16 @@ export default function ClinicsPage() {
   const [editAppIds, setEditAppIds] = useState<string[]>([])
   const [editError, setEditError] = useState<string | null>(null)
   const [editSaving, setEditSaving] = useState(false)
+
+  // Inline single-app toggles (per clinic+app)
+  const [togglingCells, setTogglingCells] = useState<Set<string>>(new Set())
+
+  // Bulk apply modal state
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkAppIds, setBulkAppIds] = useState<Set<string>>(new Set())
+  const [bulkRemovedIds, setBulkRemovedIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
 
   async function loadClinics() {
     setLoading(true)
@@ -294,6 +304,121 @@ export default function ClinicsPage() {
     setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((g) => g.key)))
   }
 
+  // Inline toggle: add or remove a single app from a single clinic.
+  // Optimistic update + reload on completion.
+  async function toggleAppInline(g: ClinicGroup, appId: string) {
+    const cellKey = `${g.key}::${appId}`
+    if (togglingCells.has(cellKey)) return
+    const company = companyById.get(g.company_id)
+    if (!company || !company.appIds.includes(appId)) return
+
+    setTogglingCells((prev) => { const s = new Set(prev); s.add(cellKey); return s })
+    const existing = g.apps.find((a) => a.app_id === appId)
+    try {
+      if (existing) {
+        // Remove this app from this clinic
+        await fetch(`/api/admin/clinics/${existing.row_id}?only=1`, { method: 'DELETE' })
+      } else {
+        // Add this app to this clinic, reusing external_id
+        await fetch('/api/admin/clinics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company_id: g.company_id,
+            name: g.name,
+            external_id: g.external_id,
+            app_ids: [appId],
+          }),
+        })
+      }
+      await loadClinics()
+    } finally {
+      setTogglingCells((prev) => { const s = new Set(prev); s.delete(cellKey); return s })
+    }
+  }
+
+  // Compute pre-selected state for bulk modal: apps assigned to ALL selected clinics.
+  function openBulkModal() {
+    const selectedGroups = filtered.filter((g) => selected.has(g.key))
+    if (selectedGroups.length === 0) return
+    const counts = new Map<string, number>()
+    for (const g of selectedGroups) {
+      for (const a of g.apps) counts.set(a.app_id, (counts.get(a.app_id) ?? 0) + 1)
+    }
+    const allSelectedHave = new Set<string>()
+    for (const [appId, n] of counts) {
+      if (n === selectedGroups.length) allSelectedHave.add(appId)
+    }
+    setBulkAppIds(allSelectedHave)
+    setBulkRemovedIds(new Set())
+    setBulkError(null)
+    setBulkOpen(true)
+  }
+
+  function bulkToggleApp(appId: string, currentlyChecked: boolean) {
+    setBulkAppIds((prev) => {
+      const s = new Set(prev)
+      if (currentlyChecked) s.delete(appId)
+      else s.add(appId)
+      return s
+    })
+    // Track explicit removals (so partial-state apps that user un-checks are also removed)
+    setBulkRemovedIds((prev) => {
+      const s = new Set(prev)
+      if (currentlyChecked) s.add(appId)
+      else s.delete(appId)
+      return s
+    })
+  }
+
+  async function applyBulk() {
+    setBulkError(null)
+    const selectedGroups = filtered.filter((g) => selected.has(g.key))
+    if (selectedGroups.length === 0) { setBulkOpen(false); return }
+    setBulkSaving(true)
+    try {
+      const requests: Promise<unknown>[] = []
+      for (const g of selectedGroups) {
+        const company = companyById.get(g.company_id)
+        if (!company) continue
+        const enabledForCompany = new Set(company.appIds)
+        const currentApps = new Set(g.apps.map((a) => a.app_id))
+
+        // Apps to add: in bulkAppIds, enabled for company, not already on clinic
+        for (const appId of bulkAppIds) {
+          if (!enabledForCompany.has(appId)) continue
+          if (currentApps.has(appId)) continue
+          requests.push(fetch('/api/admin/clinics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              company_id: g.company_id,
+              name: g.name,
+              external_id: g.external_id,
+              app_ids: [appId],
+            }),
+          }))
+        }
+
+        // Apps to remove: explicitly un-checked AND currently on clinic
+        for (const appId of bulkRemovedIds) {
+          if (!currentApps.has(appId)) continue
+          if (bulkAppIds.has(appId)) continue
+          const row = g.apps.find((a) => a.app_id === appId)
+          if (!row) continue
+          requests.push(fetch(`/api/admin/clinics/${row.row_id}?only=1`, { method: 'DELETE' }))
+        }
+      }
+      await Promise.allSettled(requests)
+      await loadClinics()
+      setBulkOpen(false)
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : 'Error desconocido')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
   return (
     <div className="animate-fade-in">
       {/* Header — identical structure to Empresas / Usuarios */}
@@ -341,14 +466,23 @@ export default function ClinicsPage() {
         ))}
 
         {selected.size > 0 && (
-          <button
-            onClick={handleBulkDelete}
-            disabled={deleting}
-            className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? 'Eliminando…' : `Eliminar seleccionadas (${selected.size})`}
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={openBulkModal}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors"
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Asignar apps ({selected.size})
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? 'Eliminando…' : `Eliminar (${selected.size})`}
+            </button>
+          </div>
         )}
       </div>
 
@@ -419,8 +553,10 @@ export default function ClinicsPage() {
             <tbody className="divide-y divide-gray-50">
               {filtered.map((g) => {
                 const company   = companyById.get(g.company_id)
-                const appsInGroup = SYNCABLE_APPS.filter((a) => g.apps.some((x) => x.app_id === a.id))
-                const allActive = g.apps.every((a) => a.active)
+                const companyApps = company
+                  ? SYNCABLE_APPS.filter((a) => company.appIds.includes(a.id))
+                  : SYNCABLE_APPS.filter((a) => g.apps.some((x) => x.app_id === a.id))
+                const allActive = g.apps.length > 0 && g.apps.every((a) => a.active)
                 return (
                   <tr key={g.key} className={`transition-colors hover:bg-gray-50/60 ${selected.has(g.key) ? 'bg-brand-50/40' : ''}`}>
                     <td className="px-4 py-3">
@@ -446,28 +582,40 @@ export default function ClinicsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {appsInGroup.length === 0
-                          ? <span className="text-xs text-gray-300 italic">—</span>
-                          : appsInGroup.map((a) => {
-                              const record = g.apps.find((x) => x.app_id === a.id)!
-                              return (
-                                <span key={a.id}
-                                  className="group inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                                  style={{ background: a.bgColor, color: a.color }}>
-                                  {a.name.slice(0, 3).toUpperCase()}
-                                  {!record.active && <span className="opacity-60 text-[9px]">off</span>}
-                                  <button
-                                    onClick={() => handleDeleteRow(record.row_id, g.name)}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-red-500 hover:text-red-700"
-                                    title={`Quitar de ${a.name}`}
-                                  >
-                                    <X className="w-2.5 h-2.5" />
-                                  </button>
-                                </span>
-                              )
-                            })}
-                      </div>
+                      {companyApps.length === 0 ? (
+                        <span className="text-xs text-gray-300 italic">Empresa sin apps</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {companyApps.map((a) => {
+                            const record = g.apps.find((x) => x.app_id === a.id)
+                            const assigned = Boolean(record)
+                            const cellKey = `${g.key}::${a.id}`
+                            const busy = togglingCells.has(cellKey)
+                            return (
+                              <button
+                                key={a.id}
+                                onClick={() => toggleAppInline(g, a.id)}
+                                disabled={busy}
+                                title={assigned ? `Quitar ${a.name}` : `Añadir ${a.name}`}
+                                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md border transition-all disabled:opacity-50 ${
+                                  assigned
+                                    ? 'shadow-sm hover:shadow hover:scale-105'
+                                    : 'border-dashed border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600 bg-white'
+                                }`}
+                                style={assigned ? { background: a.bgColor, color: a.color, borderColor: 'transparent' } : undefined}
+                              >
+                                {busy ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : (
+                                  assigned
+                                    ? <Check className="w-2.5 h-2.5" />
+                                    : <Plus className="w-2.5 h-2.5" />
+                                )}
+                                {a.name.slice(0, 3).toUpperCase()}
+                                {assigned && record && !record.active && <span className="opacity-60 text-[9px]">off</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
@@ -674,6 +822,109 @@ export default function ClinicsPage() {
                   className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60">
                   {editSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {editSaving ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Modal: Bulk apply apps to selected clinics */}
+      {bulkOpen && (() => {
+        const selectedGroups = filtered.filter((g) => selected.has(g.key))
+        // Compute union of company-enabled apps across all selected clinics
+        const enabledUnion = new Set<string>()
+        for (const g of selectedGroups) {
+          const company = companyById.get(g.company_id)
+          if (!company) continue
+          for (const id of company.appIds) enabledUnion.add(id)
+        }
+        const availableApps = SYNCABLE_APPS.filter((a) => enabledUnion.has(a.id))
+        // Per-app counts: how many selected clinics currently have this app
+        const counts = new Map<string, number>()
+        for (const g of selectedGroups) {
+          for (const a of g.apps) counts.set(a.app_id, (counts.get(a.app_id) ?? 0) + 1)
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Asignar aplicativos</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">{selectedGroups.length} clínica{selectedGroups.length !== 1 ? 's' : ''} seleccionada{selectedGroups.length !== 1 ? 's' : ''}</p>
+                </div>
+                <button onClick={() => setBulkOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                  <span className="inline-flex items-center gap-1.5"><Check className="w-3 h-3 text-green-600" /> añadir a las que no la tengan</span>
+                  <span className="mx-2">·</span>
+                  <span className="inline-flex items-center gap-1.5"><Minus className="w-3 h-3 text-orange-500" /> mixto (algunas sí, algunas no)</span>
+                  <span className="mx-2">·</span>
+                  <span className="text-gray-400">vacío = quitar de todas</span>
+                </div>
+                {availableApps.length === 0 ? (
+                  <div className="text-xs text-orange-600 px-3 py-3 bg-orange-50 rounded-lg">
+                    Las empresas seleccionadas no tienen aplicativos habilitados.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {availableApps.map((a) => {
+                      const n = counts.get(a.id) ?? 0
+                      const total = selectedGroups.length
+                      const isFull = n === total
+                      const isPartial = n > 0 && n < total
+                      const checked = bulkAppIds.has(a.id)
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => bulkToggleApp(a.id, checked)}
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+                            checked
+                              ? 'border-brand-400 bg-brand-50/60'
+                              : isPartial
+                                ? 'border-orange-300 bg-orange-50/40 hover:bg-orange-50'
+                                : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                            checked
+                              ? 'bg-brand-500 border-brand-500'
+                              : isPartial
+                                ? 'bg-white border-orange-400'
+                                : 'bg-white border-gray-300'
+                          }`}>
+                            {checked && <Check className="w-3 h-3 text-white" />}
+                            {!checked && isPartial && <Minus className="w-2.5 h-2.5 text-orange-500" />}
+                          </div>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0"
+                            style={{ background: a.bgColor, color: a.color }}>
+                            {a.name.slice(0, 3).toUpperCase()}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-gray-700 block truncate">{a.name}</span>
+                            <span className="text-[10px] text-gray-400">{n}/{total} clínicas</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {bulkError && (
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{bulkError}</div>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+                <button onClick={() => setBulkOpen(false)} disabled={bulkSaving}
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-60">
+                  Cancelar
+                </button>
+                <button onClick={applyBulk} disabled={bulkSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60">
+                  {bulkSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {bulkSaving ? 'Aplicando…' : `Aplicar a ${selectedGroups.length}`}
                 </button>
               </div>
             </div>
