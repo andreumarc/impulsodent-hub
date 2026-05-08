@@ -89,6 +89,7 @@ export default function ClinicsPage() {
   const [bulkRemovedIds, setBulkRemovedIds] = useState<Set<string>>(new Set())
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  const [bulkScope, setBulkScope] = useState<'selected' | 'visible'>('selected')
 
   async function loadClinics() {
     setLoading(true)
@@ -337,19 +338,29 @@ export default function ClinicsPage() {
     }
   }
 
-  // Compute pre-selected state for bulk modal: apps assigned to ALL selected clinics.
-  function openBulkModal() {
-    const selectedGroups = filtered.filter((g) => selected.has(g.key))
-    if (selectedGroups.length === 0) return
+  // Resolve which clinic groups the bulk modal targets.
+  function getBulkTargets() {
+    return bulkScope === 'visible'
+      ? filtered
+      : filtered.filter((g) => selected.has(g.key))
+  }
+
+  // Compute pre-selected state for bulk modal: apps assigned to ALL target clinics.
+  function openBulkModal(scope: 'selected' | 'visible') {
+    const targets = scope === 'visible'
+      ? filtered
+      : filtered.filter((g) => selected.has(g.key))
+    if (targets.length === 0) return
     const counts = new Map<string, number>()
-    for (const g of selectedGroups) {
+    for (const g of targets) {
       for (const a of g.apps) counts.set(a.app_id, (counts.get(a.app_id) ?? 0) + 1)
     }
-    const allSelectedHave = new Set<string>()
+    const allTargetsHave = new Set<string>()
     for (const [appId, n] of counts) {
-      if (n === selectedGroups.length) allSelectedHave.add(appId)
+      if (n === targets.length) allTargetsHave.add(appId)
     }
-    setBulkAppIds(allSelectedHave)
+    setBulkScope(scope)
+    setBulkAppIds(allTargetsHave)
     setBulkRemovedIds(new Set())
     setBulkError(null)
     setBulkOpen(true)
@@ -373,12 +384,12 @@ export default function ClinicsPage() {
 
   async function applyBulk() {
     setBulkError(null)
-    const selectedGroups = filtered.filter((g) => selected.has(g.key))
-    if (selectedGroups.length === 0) { setBulkOpen(false); return }
+    const targets = getBulkTargets()
+    if (targets.length === 0) { setBulkOpen(false); return }
     setBulkSaving(true)
     try {
       const requests: Promise<unknown>[] = []
-      for (const g of selectedGroups) {
+      for (const g of targets) {
         const company = companyById.get(g.company_id)
         if (!company) continue
         const enabledForCompany = new Set(company.appIds)
@@ -465,25 +476,41 @@ export default function ClinicsPage() {
           </button>
         ))}
 
-        {selected.size > 0 && (
-          <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          {filtered.length > 0 && selected.size === 0 && (
             <button
-              onClick={openBulkModal}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors"
+              onClick={() => openBulkModal('visible')}
+              title={
+                companyFilter !== 'all' || appFilter !== 'all' || statusFilter !== 'all'
+                  ? `Aplicar a las ${filtered.length} clínicas filtradas`
+                  : `Aplicar a las ${filtered.length} clínicas visibles (sin filtros)`
+              }
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-500 hover:bg-brand-600 text-white transition-colors"
             >
               <LayoutGrid className="w-4 h-4" />
-              Asignar apps ({selected.size})
+              Aplicar apps a todas ({filtered.length})
             </button>
-            <button
-              onClick={handleBulkDelete}
-              disabled={deleting}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
-            >
-              <Trash2 className="w-4 h-4" />
-              {deleting ? 'Eliminando…' : `Eliminar (${selected.size})`}
-            </button>
-          </div>
-        )}
+          )}
+          {selected.size > 0 && (
+            <>
+              <button
+                onClick={() => openBulkModal('selected')}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Asignar apps ({selected.size})
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? 'Eliminando…' : `Eliminar (${selected.size})`}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Secondary filters (empresa + app) — compact row under tabs */}
@@ -829,29 +856,35 @@ export default function ClinicsPage() {
         )
       })()}
 
-      {/* Modal: Bulk apply apps to selected clinics */}
+      {/* Modal: Bulk apply apps to target clinics (selected OR all visible) */}
       {bulkOpen && (() => {
-        const selectedGroups = filtered.filter((g) => selected.has(g.key))
-        // Compute union of company-enabled apps across all selected clinics
+        const targets = bulkScope === 'visible' ? filtered : filtered.filter((g) => selected.has(g.key))
+        // Compute union of company-enabled apps across all target clinics
         const enabledUnion = new Set<string>()
-        for (const g of selectedGroups) {
+        for (const g of targets) {
           const company = companyById.get(g.company_id)
           if (!company) continue
           for (const id of company.appIds) enabledUnion.add(id)
         }
         const availableApps = SYNCABLE_APPS.filter((a) => enabledUnion.has(a.id))
-        // Per-app counts: how many selected clinics currently have this app
+        // Per-app counts: how many target clinics currently have this app
         const counts = new Map<string, number>()
-        for (const g of selectedGroups) {
+        for (const g of targets) {
           for (const a of g.apps) counts.set(a.app_id, (counts.get(a.app_id) ?? 0) + 1)
         }
+        // Distinct companies in scope (used to warn when they have different app catalogs)
+        const distinctCompanies = new Set(targets.map((g) => g.company_id))
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">Asignar aplicativos</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">{selectedGroups.length} clínica{selectedGroups.length !== 1 ? 's' : ''} seleccionada{selectedGroups.length !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {bulkScope === 'visible' ? 'Aplicar a todas las visibles · ' : ''}
+                    {targets.length} clínica{targets.length !== 1 ? 's' : ''}
+                    {distinctCompanies.size > 1 ? ` · ${distinctCompanies.size} empresas` : ''}
+                  </p>
                 </div>
                 <button onClick={() => setBulkOpen(false)} className="text-gray-400 hover:text-gray-600">
                   <X className="w-5 h-5" />
@@ -873,7 +906,7 @@ export default function ClinicsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {availableApps.map((a) => {
                       const n = counts.get(a.id) ?? 0
-                      const total = selectedGroups.length
+                      const total = targets.length
                       const isFull = n === total
                       const isPartial = n > 0 && n < total
                       const checked = bulkAppIds.has(a.id)
@@ -924,7 +957,7 @@ export default function ClinicsPage() {
                 <button onClick={applyBulk} disabled={bulkSaving}
                   className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60">
                   {bulkSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {bulkSaving ? 'Aplicando…' : `Aplicar a ${selectedGroups.length}`}
+                  {bulkSaving ? 'Aplicando…' : `Aplicar a ${targets.length}`}
                 </button>
               </div>
             </div>
