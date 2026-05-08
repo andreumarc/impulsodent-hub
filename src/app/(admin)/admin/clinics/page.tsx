@@ -24,32 +24,83 @@ interface Company {
 
 const SYNCABLE_APPS = APPS.filter((a) => !a.internal)
 
+interface AppEntry {
+  app_id: string
+  active: boolean
+  /** Every Hub row that maps this app to this physical clinic. Usually 1, can
+   *  be >1 when legacy onboardings created the same (company, name, app) under
+   *  different external_ids. All of them are deleted when the app is toggled off. */
+  row_ids: string[]
+}
+
 interface ClinicGroup {
   key: string
   company_id: string
   name: string
+  /** All sibling external_ids for this physical clinic (deduped by lowercase name). */
+  external_ids: string[]
+  /** Canonical external_id for new operations (alphabetically smallest sibling). */
   external_id: string
-  apps: { app_id: string; active: boolean; row_id: string }[]
+  /** Total number of underlying Hub rows in this group (sum of row_ids across apps). */
+  raw_row_count: number
+  apps: AppEntry[]
+}
+
+function normalizeName(name: string) {
+  return name.trim().toLowerCase()
 }
 
 function groupClinics(rows: Clinic[]): ClinicGroup[] {
-  const map = new Map<string, ClinicGroup>()
+  // Group by (company_id, normalized name) — collapses legacy duplicate
+  // external_ids that all represent the same physical clinic.
+  const map = new Map<string, {
+    name: string
+    company_id: string
+    external_ids: Set<string>
+    /** app_id → AppEntry */
+    apps: Map<string, AppEntry>
+    raw_row_count: number
+  }>()
+
   for (const r of rows) {
-    const key = `${r.company_id}::${r.external_id}`
-    const existing = map.get(key)
-    if (existing) {
-      existing.apps.push({ app_id: r.app_id, active: r.active, row_id: r.id })
-    } else {
-      map.set(key, {
-        key,
-        company_id: r.company_id,
+    const key = `${r.company_id}::${normalizeName(r.name)}`
+    let g = map.get(key)
+    if (!g) {
+      g = {
         name: r.name,
-        external_id: r.external_id,
-        apps: [{ app_id: r.app_id, active: r.active, row_id: r.id }],
-      })
+        company_id: r.company_id,
+        external_ids: new Set(),
+        apps: new Map(),
+        raw_row_count: 0,
+      }
+      map.set(key, g)
+    }
+    g.external_ids.add(r.external_id)
+    g.raw_row_count++
+    const existing = g.apps.get(r.app_id)
+    if (existing) {
+      existing.row_ids.push(r.id)
+      // If any sibling row is active, surface as active
+      if (r.active) existing.active = true
+    } else {
+      g.apps.set(r.app_id, { app_id: r.app_id, active: r.active, row_ids: [r.id] })
     }
   }
-  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+
+  return Array.from(map.entries())
+    .map(([key, g]) => {
+      const sortedExternalIds = Array.from(g.external_ids).sort()
+      return {
+        key,
+        company_id: g.company_id,
+        name: g.name,
+        external_ids: sortedExternalIds,
+        external_id: sortedExternalIds[0],
+        raw_row_count: g.raw_row_count,
+        apps: Array.from(g.apps.values()),
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export default function ClinicsPage() {
@@ -205,12 +256,6 @@ export default function ClinicsPage() {
     } finally { setSubmitting(false) }
   }
 
-  async function handleDeleteRow(row_id: string, name: string) {
-    if (!confirm(`¿Eliminar "${name}" de este aplicativo?`)) return
-    const r = await fetch(`/api/admin/clinics/${row_id}?only=1`, { method: 'DELETE' })
-    if (r.ok) setClinics((prev) => prev.filter((x) => x.id !== row_id))
-  }
-
   function openEditModal(g: ClinicGroup) {
     setEditGroup(g)
     setEditName(g.name)
@@ -238,19 +283,21 @@ export default function ClinicsPage() {
       const toAdd    = editAppIds.filter((a) => !currentApps.includes(a))
       const toRemove = editGroup.apps.filter((a) => !editAppIds.includes(a.app_id))
 
-      // 1) PATCH each existing (kept) row with new name + active
+      // 1) PATCH every sibling row of every kept app with new name + active
       const keptRows = editGroup.apps.filter((a) => editAppIds.includes(a.app_id))
-      await Promise.all(keptRows.map((a) =>
-        fetch(`/api/admin/clinics/${a.row_id}`, {
+      const patchRowIds = keptRows.flatMap((a) => a.row_ids)
+      await Promise.all(patchRowIds.map((id) =>
+        fetch(`/api/admin/clinics/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: trimmed, active: editActive }),
         }),
       ))
 
-      // 2) DELETE (single-row) apps that were removed
-      await Promise.all(toRemove.map((a) =>
-        fetch(`/api/admin/clinics/${a.row_id}?only=1`, { method: 'DELETE' }),
+      // 2) DELETE every sibling row of removed apps (single-row deletes)
+      const removeRowIds = toRemove.flatMap((a) => a.row_ids)
+      await Promise.all(removeRowIds.map((id) =>
+        fetch(`/api/admin/clinics/${id}?only=1`, { method: 'DELETE' }),
       ))
 
       // 3) POST to add new apps (reusing external_id)
@@ -278,8 +325,10 @@ export default function ClinicsPage() {
 
   async function handleDeleteGroup(g: ClinicGroup) {
     if (!confirm(`¿Eliminar "${g.name}" de todos los aplicativos?`)) return
-    await Promise.all(g.apps.map((a) => fetch(`/api/admin/clinics/${a.row_id}`, { method: 'DELETE' })))
-    setClinics((prev) => prev.filter((x) => !g.apps.some((a) => a.row_id === x.id)))
+    const rowIds = g.apps.flatMap((a) => a.row_ids)
+    await Promise.all(rowIds.map((id) => fetch(`/api/admin/clinics/${id}`, { method: 'DELETE' })))
+    const deleted = new Set(rowIds)
+    setClinics((prev) => prev.filter((x) => !deleted.has(x.id)))
     setSelected((prev) => { const s = new Set(prev); s.delete(g.key); return s })
   }
 
@@ -288,7 +337,7 @@ export default function ClinicsPage() {
     if (!confirm(`¿Eliminar ${toDelete.length} clínica${toDelete.length !== 1 ? 's' : ''} de todos los aplicativos?`)) return
     setDeleting(true)
     try {
-      const allRowIds = toDelete.flatMap((g) => g.apps.map((a) => a.row_id))
+      const allRowIds = toDelete.flatMap((g) => g.apps.flatMap((a) => a.row_ids))
       await Promise.all(allRowIds.map((id) => fetch(`/api/admin/clinics/${id}`, { method: 'DELETE' })))
       const deletedRowIds = new Set(allRowIds)
       const deletedKeys   = new Set(toDelete.map((g) => g.key))
@@ -317,8 +366,11 @@ export default function ClinicsPage() {
     const existing = g.apps.find((a) => a.app_id === appId)
     try {
       if (existing) {
-        // Remove this app from this clinic
-        await fetch(`/api/admin/clinics/${existing.row_id}?only=1`, { method: 'DELETE' })
+        // Remove this app from this physical clinic — delete every sibling row
+        // (legacy duplicates may have stored the same app under multiple external_ids)
+        await Promise.all(existing.row_ids.map((id) =>
+          fetch(`/api/admin/clinics/${id}?only=1`, { method: 'DELETE' }),
+        ))
       } else {
         // Add this app to this clinic, reusing external_id
         await fetch('/api/admin/clinics', {
@@ -411,13 +463,16 @@ export default function ClinicsPage() {
           }))
         }
 
-        // Apps to remove: explicitly un-checked AND currently on clinic
+        // Apps to remove: explicitly un-checked AND currently on clinic.
+        // Delete every sibling row for that app_id (legacy duplicates).
         for (const appId of bulkRemovedIds) {
           if (!currentApps.has(appId)) continue
           if (bulkAppIds.has(appId)) continue
-          const row = g.apps.find((a) => a.app_id === appId)
-          if (!row) continue
-          requests.push(fetch(`/api/admin/clinics/${row.row_id}?only=1`, { method: 'DELETE' }))
+          const entry = g.apps.find((a) => a.app_id === appId)
+          if (!entry) continue
+          for (const id of entry.row_ids) {
+            requests.push(fetch(`/api/admin/clinics/${id}?only=1`, { method: 'DELETE' }))
+          }
         }
       }
       await Promise.allSettled(requests)
@@ -598,7 +653,17 @@ export default function ClinicsPage() {
                         </div>
                         <div className="min-w-0">
                           <span className="text-sm font-semibold text-gray-900 block truncate">{g.name}</span>
-                          <span className="text-[11px] text-gray-400 font-mono">{g.external_id}</span>
+                          <span className="text-[11px] text-gray-400 font-mono flex items-center gap-1.5">
+                            <span className="truncate">{g.external_id}</span>
+                            {g.external_ids.length > 1 && (
+                              <span
+                                className="inline-flex items-center text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 flex-shrink-0"
+                                title={`Esta clínica está duplicada en Hub bajo ${g.external_ids.length} external_ids: ${g.external_ids.join(', ')}. Las operaciones se aplican a todas.`}
+                              >
+                                +{g.external_ids.length - 1}
+                              </span>
+                            )}
+                          </span>
                         </div>
                       </div>
                     </td>
