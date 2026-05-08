@@ -210,6 +210,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'casos-clinicos',
+    name: 'Resolución de Casos Clínicos',
+    description: 'Solicitud, revisión y resolución médica de casos clínicos dentales por especialidad, con versionado y auditoría completa.',
+    icon: 'Stethoscope',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_CASOSCLINICOS || 'https://casos-clinicos.impulsodent.com',
+    status: 'active',
+    category: 'Clínica',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
