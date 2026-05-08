@@ -198,6 +198,18 @@ export const APPS: AppDef[] = [
     internal: true,
   },
   {
+    id: 'historiales',
+    name: 'Historiales Clínicos',
+    description: 'Solicitud, validación y entrega de historiales clínicos con trazabilidad completa, workflow multinivel y cumplimiento RGPD.',
+    icon: 'FolderOpen',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_HISTORIALES || 'https://historiales.impulsodent.com',
+    status: 'active',
+    category: 'Clínica',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
