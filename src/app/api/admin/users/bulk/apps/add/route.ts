@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     status: 'applied',
     granted: grants.length,
     skipped_same_role,
-    conflicts_resolved: body.on_conflict ? conflicts.length : 0,
+    conflicts_resolved: overwrites.length,
     skipped_no_company_access,
     skipped_cross_company,
   })

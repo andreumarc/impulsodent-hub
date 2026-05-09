@@ -36,6 +36,7 @@ interface Conflict {
 }
 
 const PUBLIC_APPS = APPS.filter((a) => !a.internal)
+const DEFAULT_BULK_ROLE = APP_ROLES.find((r) => r.value === 'admin')?.value ?? APP_ROLES[0].value
 
 export function BulkAddAppsModal({ users, onClose, onApplied }: BulkAddAppsModalProps) {
   const [selection, setSelection] = useState<Record<string, string>>({}) // app_id -> role
@@ -192,7 +193,7 @@ export function BulkAddAppsModal({ users, onClose, onApplied }: BulkAddAppsModal
                 <input
                   type="checkbox"
                   checked={enabled}
-                  onChange={(e) => toggle(app.id, e.target.checked ? (role || APP_ROLES[1].value /* admin */) : '')}
+                  onChange={(e) => toggle(app.id, e.target.checked ? (role || DEFAULT_BULK_ROLE) : '')}
                   className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-400 cursor-pointer"
                 />
                 <div
