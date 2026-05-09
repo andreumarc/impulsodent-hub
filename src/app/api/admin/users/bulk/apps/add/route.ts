@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 import { pushUserToApps } from '@/lib/sync'
+import { APPS } from '@/lib/apps'
 
 interface AppRoleInput {
   app_id: string
@@ -72,13 +73,12 @@ export async function POST(req: NextRequest) {
   const companyHasApp = new Set(companyAccessRows.map((r) => `${r.company_id}|${r.app_id}`))
 
   // App name lookup (for nicer conflict messages)
-  const { APPS } = await import('@/lib/apps')
   const appNameById = new Map(APPS.map((a) => [a.id, a.name]))
 
   // Categorize each (user, app)
   const conflicts: Conflict[] = []
   const skipped_no_company_access: { user_id: string; app_id: string }[] = []
-  type Action = { user_id: string; app_id: string; role: string; was_existing: boolean }
+  type Action = { user_id: string; app_id: string; role: string }
   const grants: Action[] = []
   const overwrites: Action[] = []
   let skipped_same_role = 0
@@ -91,19 +91,14 @@ export async function POST(req: NextRequest) {
         skipped_same_role++
         continue
       }
-      // CompanyAppAccess check (only if user has a company)
-      if (u.company_id && !companyHasApp.has(`${u.company_id}|${ar.app_id}`)) {
-        skipped_no_company_access.push({ user_id: u.id, app_id: ar.app_id })
-        continue
-      }
-      // No company at all: also skip
-      if (!u.company_id) {
+      // No company OR company without CompanyAppAccess for this app: skip
+      if (!u.company_id || !companyHasApp.has(`${u.company_id}|${ar.app_id}`)) {
         skipped_no_company_access.push({ user_id: u.id, app_id: ar.app_id })
         continue
       }
       const current = existingByApp.get(ar.app_id)
       if (!current) {
-        grants.push({ user_id: u.id, app_id: ar.app_id, role: ar.role, was_existing: false })
+        grants.push({ user_id: u.id, app_id: ar.app_id, role: ar.role })
       } else if (current === ar.role) {
         skipped_same_role++
       } else {
@@ -117,7 +112,7 @@ export async function POST(req: NextRequest) {
           new_role: ar.role,
         })
         if (body.on_conflict === 'overwrite') {
-          overwrites.push({ user_id: u.id, app_id: ar.app_id, role: ar.role, was_existing: true })
+          overwrites.push({ user_id: u.id, app_id: ar.app_id, role: ar.role })
         }
       }
     }
@@ -172,7 +167,7 @@ export async function POST(req: NextRequest) {
     status: 'applied',
     granted: grants.length,
     skipped_same_role,
-    conflicts_resolved: body.on_conflict === 'overwrite' ? conflicts.length : (body.on_conflict === 'skip' ? conflicts.length : 0),
+    conflicts_resolved: body.on_conflict ? conflicts.length : 0,
     skipped_no_company_access,
     skipped_cross_company,
   })
