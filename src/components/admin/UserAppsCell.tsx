@@ -51,16 +51,30 @@ function Chip({
 export function UserAppsCell({ user, onOpenDrawer }: UserAppsCellProps) {
   // Superadmin: implicit access to ALL non-internal apps
   if (user.role === 'superadmin') {
+    const content = (
+      <>
+        Todas <span className="opacity-60">({PUBLIC_APPS.length})</span>
+      </>
+    )
+    if (onOpenDrawer) {
+      return (
+        <button
+          type="button"
+          onClick={() => onOpenDrawer(user.id)}
+          title="Acceso a todas las apps (rol superadmin)"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-100 text-brand-700 hover:bg-brand-200 cursor-pointer transition-colors"
+        >
+          {content}
+        </button>
+      )
+    }
     return (
-      <button
-        type="button"
-        onClick={() => onOpenDrawer?.(user.id)}
-        title={`Acceso a todas las apps (rol superadmin)`}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-100 text-brand-700 hover:bg-brand-200 transition-colors"
+      <span
+        title="Acceso a todas las apps (rol superadmin)"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-100 text-brand-700"
       >
-        Todas
-        <span className="opacity-60">({PUBLIC_APPS.length})</span>
-      </button>
+        {content}
+      </span>
     )
   }
 
@@ -76,7 +90,10 @@ export function UserAppsCell({ user, onOpenDrawer }: UserAppsCellProps) {
   const overflow = sorted.slice(4)
 
   const overflowTitle = overflow
-    .map((a) => `${a.name} · ${roleByApp.get(a.id) ?? ''}`)
+    .map((a) => {
+      const r = roleByApp.get(a.id)
+      return r ? `${a.name} · ${r}` : a.name
+    })
     .join('\n')
 
   return (
