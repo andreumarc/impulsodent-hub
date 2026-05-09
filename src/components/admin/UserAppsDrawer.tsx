@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { X, ExternalLink, LayoutGrid } from 'lucide-react'
-import { AppsSection } from '@/app/(admin)/admin/users/new/page'
+import { AppsSection } from '@/components/admin/AppsSection'
 
 interface UserAppsDrawerProps {
   /** When set, drawer is open and shows this user. null = closed. */
@@ -18,7 +18,7 @@ interface UserAppsDrawerProps {
 }
 
 function getInitials(name: string) {
-  return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
+  return name.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0]).join('').toUpperCase() || '?'
 }
 
 export function UserAppsDrawer({
@@ -34,12 +34,20 @@ export function UserAppsDrawer({
   const isDirty = JSON.stringify(appRoles) !== JSON.stringify(initialAppRoles)
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load user detail when userId changes
   useEffect(() => {
-    if (!userId) return
+    if (!userId) {
+      setAppRoles({})
+      setInitialAppRoles({})
+      setError('')
+      setSuccess(false)
+      return
+    }
+    const controller = new AbortController()
     setLoading(true); setError(''); setSuccess(false)
-    fetch(`/api/admin/users/${userId}`)
+    fetch(`/api/admin/users/${userId}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((u: { app_roles?: Array<{ app_id: string; role: string }> }) => {
         const initial: Record<string, string> = {}
@@ -47,8 +55,9 @@ export function UserAppsDrawer({
         setAppRoles(initial)
         setInitialAppRoles(initial)
       })
-      .catch(() => setError('Error cargando usuario'))
+      .catch((err: Error) => { if (err.name !== 'AbortError') setError('Error cargando usuario') })
       .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [userId])
 
   const requestClose = useCallback(() => {
@@ -65,6 +74,11 @@ export function UserAppsDrawer({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [userId, requestClose])
+
+  // Clean up the auto-close timer on unmount
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+  }, [])
 
   async function handleSave() {
     if (!userId) return
@@ -84,9 +98,11 @@ export function UserAppsDrawer({
         setError(data.error || 'Error al guardar')
         return
       }
+      const savedSnapshot = Object.fromEntries(app_roles.map(({ app_id, role }) => [app_id, role]))
+      setInitialAppRoles(savedSnapshot)
       setSuccess(true)
       onSave(userId, app_roles)
-      setTimeout(() => onClose(), 1200)
+      closeTimerRef.current = setTimeout(() => onClose(), 1200)
     } catch {
       setError('Error de conexión')
     } finally {
