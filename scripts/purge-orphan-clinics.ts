@@ -28,20 +28,19 @@ interface PurgeResult {
   body: string
 }
 
-async function deactivateClinic(
+async function deactivateClinicWithSlug(
   appUrl: string,
   secret: string,
   companySlug: string,
   clinic: AppClinicRow,
 ): Promise<PurgeResult> {
-  const url = `${appUrl}/api/sync/clinics`
   try {
-    const res = await fetch(url, {
+    const res = await fetch(`${appUrl}/api/sync/clinics`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
       body: JSON.stringify({
         company_slug: companySlug,
-        company_name: companySlug, // sub-apps que auto-crean Company necesitan name
+        company_name: companySlug,
         clinics: [{ id: clinic.id, name: clinic.name, active: false }],
       }),
       signal: AbortSignal.timeout(10_000),
@@ -52,6 +51,29 @@ async function deactivateClinic(
     const e = err as { message?: string }
     return { ok: false, status: 0, body: e?.message ?? String(err) }
   }
+}
+
+/**
+ * Try a list of candidate company_slugs until one succeeds. Some sub-apps
+ * auto-create the Company (any slug works); strict ones require an existing
+ * Company row, so we try the real Hub-pushed empresas first before falling
+ * back to a placeholder.
+ */
+async function deactivateClinic(
+  appUrl: string,
+  secret: string,
+  candidates: string[],
+  clinic: AppClinicRow,
+): Promise<PurgeResult> {
+  let last: PurgeResult = { ok: false, status: 0, body: 'no candidates' }
+  for (const slug of candidates) {
+    const r = await deactivateClinicWithSlug(appUrl, secret, slug, clinic)
+    if (r.ok) return r
+    last = r
+    // For 404 (Company not found) keep trying. For 401/403/500 stop early.
+    if (r.status !== 404 && r.status !== 400) break
+  }
+  return last
 }
 
 async function main() {
@@ -65,10 +87,10 @@ async function main() {
   let totalSucceeded = 0
   let totalFailed = 0
 
-  // Placeholder slug for sub-apps that need a company_slug to find a clinic.
-  // The handler will auto-create this Company on first call; subsequent calls
-  // reuse it. The user can delete it from the sub-app after purge if it bothers.
-  const PLACEHOLDER_SLUG = 'hub-orphan-purge'
+  // Candidate company_slugs to try, in order. Real Hub-pushed empresas first
+  // (so strict sub-apps find a matching Company); placeholder last for apps
+  // that auto-create on the fly.
+  const SLUG_CANDIDATES = ['vidental', 'viadental', 'impulsodent', 'impladent', 'hub-orphan-purge']
 
   for (const app of report.apps) {
     if (!app.app_url || app.orphan_clinics.length === 0) continue
@@ -83,13 +105,13 @@ async function main() {
     }
 
     for (const c of app.orphan_clinics) {
-      const res = await deactivateClinic(app.app_url, secret, PLACEHOLDER_SLUG, c)
+      const res = await deactivateClinic(app.app_url, secret, SLUG_CANDIDATES, c)
       if (res.ok) {
         totalSucceeded++
         console.log(`  ✓ ${c.name} → ${res.status}`)
       } else {
         totalFailed++
-        console.log(`  ✗ ${c.name} → ${res.status} ${res.body}`)
+        console.log(`  ✗ ${c.name} → ${res.status} ${res.body.slice(0, 120)}`)
       }
     }
   }
