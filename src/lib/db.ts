@@ -37,6 +37,7 @@ export interface HubUser {
   updated_at: string
   company?: Pick<Company, 'id' | 'name' | 'slug'>
   companies: Array<Pick<Company, 'id' | 'name' | 'slug'>>
+  app_roles?: Array<{ app_id: string; role: string }>
 }
 
 export interface AppAccess {
@@ -90,6 +91,7 @@ function serializeUser(u: {
   created_at: Date; updated_at: Date
   company?: { id: string; name: string; slug: string } | null
   companyAccess?: Array<{ company: { id: string; name: string; slug: string } }>
+  appRoles?: Array<{ app_id: string; role: string }>
 }): HubUser {
   const companies = u.companyAccess?.map((ca) => ca.company) ?? (u.company ? [u.company] : [])
   return {
@@ -101,6 +103,7 @@ function serializeUser(u: {
     updated_at: u.updated_at.toISOString(),
     company: u.company ?? undefined,
     companies,
+    app_roles: u.appRoles?.map((r) => ({ app_id: r.app_id, role: r.role })),
   }
 }
 
@@ -217,6 +220,7 @@ export async function listUsers(): Promise<HubUser[]> {
     include: {
       company: { select: { id: true, name: true, slug: true } },
       companyAccess: { include: { company: { select: { id: true, name: true, slug: true } } } },
+      appRoles: { select: { app_id: true, role: true } },
     },
   })
   return rows.map(serializeUser)

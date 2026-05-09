@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react'
+import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw, Trash2, LayoutGrid, Minus } from 'lucide-react'
 import { HUB_ROLES, getRoleStyle } from '@/lib/roles'
+import { UserAppsCell } from '@/components/admin/UserAppsCell'
+import { UserAppsDrawer } from '@/components/admin/UserAppsDrawer'
+import { BulkAddAppsModal } from '@/components/admin/BulkAddAppsModal'
+import { BulkRemoveAppsModal } from '@/components/admin/BulkRemoveAppsModal'
 
 const PLAN_COLORS: Record<string, string> = {
   free: 'bg-gray-100 text-gray-500',
@@ -18,6 +22,7 @@ interface HubUser {
   companies?: Array<{ id: string; name: string; slug: string }>
   company_access_all?: boolean
   subscription_plan: string; subscription_expires_at: string | null
+  app_roles?: Array<{ app_id: string; role: string }>
 }
 
 function getInitials(name: string) {
@@ -154,7 +159,15 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pwdUser, setPwdUser] = useState<HubUser | null>(null)
+  const [drawerUser, setDrawerUser] = useState<HubUser | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [bulkAddOpen, setBulkAddOpen] = useState(false)
+  const [bulkRemoveOpen, setBulkRemoveOpen] = useState(false)
+  const [bulkSummary, setBulkSummary] = useState<
+    | { kind: 'add'; granted: number; skipped_same_role: number; conflicts_resolved: number; warnings: number }
+    | { kind: 'remove'; revoked: number; skipped_not_assigned: number }
+    | null
+  >(null)
 
   function loadUsers() {
     return fetch('/api/admin/users').then((r) => r.json()).then(setUsers).catch(() => null)
@@ -216,6 +229,49 @@ export default function UsersPage() {
   return (
     <div className="animate-fade-in">
       {pwdUser && <PasswordModal user={pwdUser} onClose={() => setPwdUser(null)} />}
+      <UserAppsDrawer
+        userId={drawerUser?.id ?? null}
+        userName={drawerUser?.name ?? ''}
+        userEmail={drawerUser?.email ?? ''}
+        onClose={() => setDrawerUser(null)}
+        onSave={(uid, appRoles) => {
+          setUsers((prev) => prev.map((u) => u.id === uid ? { ...u, app_roles: appRoles } : u))
+        }}
+      />
+      {bulkAddOpen && (
+        <BulkAddAppsModal
+          users={[...selected].map((id) => users.find((u) => u.id === id)!).filter(Boolean)}
+          onClose={() => setBulkAddOpen(false)}
+          onApplied={(r) => {
+            setBulkSummary({
+              kind: 'add',
+              granted: r.granted,
+              skipped_same_role: r.skipped_same_role,
+              conflicts_resolved: r.conflicts_resolved,
+              warnings: r.skipped_no_company_access.length + r.skipped_cross_company.length,
+            })
+            setSelected(new Set())
+            loadUsers()
+            setTimeout(() => setBulkSummary(null), 6000)
+          }}
+        />
+      )}
+      {bulkRemoveOpen && (
+        <BulkRemoveAppsModal
+          users={[...selected].map((id) => users.find((u) => u.id === id)!).filter(Boolean)}
+          onClose={() => setBulkRemoveOpen(false)}
+          onApplied={(r) => {
+            setBulkSummary({
+              kind: 'remove',
+              revoked: r.revoked,
+              skipped_not_assigned: r.skipped_not_assigned,
+            })
+            setSelected(new Set())
+            loadUsers()
+            setTimeout(() => setBulkSummary(null), 6000)
+          }}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -260,6 +316,49 @@ export default function UsersPage() {
         </div>
       )}
 
+      {bulkSummary && (
+        <div className="mb-5 rounded-xl border border-gray-100 bg-white p-3 text-xs text-gray-600">
+          <div className="font-semibold text-gray-700 mb-1.5">
+            {bulkSummary.kind === 'add' ? 'Apps añadidas' : 'Apps quitadas'}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {bulkSummary.kind === 'add' ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700">
+                  + {bulkSummary.granted} {bulkSummary.granted === 1 ? 'asignación nueva' : 'asignaciones nuevas'}
+                </span>
+                {bulkSummary.skipped_same_role > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-gray-600">
+                    {bulkSummary.skipped_same_role} ya {bulkSummary.skipped_same_role === 1 ? 'existía' : 'existían'}
+                  </span>
+                )}
+                {bulkSummary.conflicts_resolved > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-blue-200 bg-blue-50 text-blue-700">
+                    {bulkSummary.conflicts_resolved} {bulkSummary.conflicts_resolved === 1 ? 'conflicto resuelto' : 'conflictos resueltos'}
+                  </span>
+                )}
+                {bulkSummary.warnings > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-700">
+                    ⚠ {bulkSummary.warnings} {bulkSummary.warnings === 1 ? 'omitido' : 'omitidos'} (sin acceso de empresa o cross-company)
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-gray-700">
+                  − {bulkSummary.revoked} {bulkSummary.revoked === 1 ? 'asignación revocada' : 'asignaciones revocadas'}
+                </span>
+                {bulkSummary.skipped_not_assigned > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-gray-100 bg-gray-50 text-gray-500">
+                    {bulkSummary.skipped_not_assigned} {bulkSummary.skipped_not_assigned === 1 ? 'no asignada' : 'no asignadas'} (skip)
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Role tabs */}
       <div className="flex gap-2 mb-5 flex-wrap items-center">
         {tabs.map((tab) => (
@@ -277,14 +376,30 @@ export default function UsersPage() {
         ))}
 
         {selected.size > 0 && (
-          <button
-            onClick={handleBulkDelete}
-            disabled={deleting}
-            className="ml-auto flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? 'Eliminando…' : `Eliminar seleccionados (${selected.size})`}
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setBulkAddOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Añadir apps ({selected.size})
+            </button>
+            <button
+              onClick={() => setBulkRemoveOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <Minus className="w-4 h-4" />
+              Quitar apps ({selected.size})
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? 'Eliminando…' : `Eliminar (${selected.size})`}
+            </button>
+          </div>
         )}
       </div>
 
@@ -316,6 +431,7 @@ export default function UsersPage() {
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Email</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Rol</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Empresa</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Apps</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Estado</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Suscripción</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Alta</th>
@@ -352,6 +468,9 @@ export default function UsersPage() {
                     <td className="px-4 py-3 hidden lg:table-cell">
                       <CompaniesCell user={u} />
                     </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <UserAppsCell user={u} onOpenDrawer={() => setDrawerUser(u)} />
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${u.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
                         {u.active ? 'Activo' : 'Inactivo'}
@@ -384,6 +503,11 @@ export default function UsersPage() {
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-brand-600 hover:bg-gray-100 rounded-lg transition-colors">
                           <KeyRound className="w-3.5 h-3.5" />
                           <span className="hidden sm:inline">Contraseña</span>
+                        </button>
+                        <button onClick={() => setDrawerUser(u)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-brand-600 hover:bg-gray-100 rounded-lg transition-colors">
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Apps</span>
                         </button>
                         <button onClick={() => toggleActive(u)}
                           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
