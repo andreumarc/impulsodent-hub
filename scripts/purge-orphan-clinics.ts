@@ -21,6 +21,7 @@
  */
 import { runAudit } from '../src/lib/audit-sync'
 import type { AppClinicRow } from '../src/lib/audit-sync'
+import { prisma } from '../src/lib/prisma'
 
 interface PurgeResult {
   ok: boolean
@@ -30,8 +31,10 @@ interface PurgeResult {
 
 async function deactivateClinicWithSlug(
   appUrl: string,
+  appId: string,
   secret: string,
   companySlug: string,
+  hubCompanyId: string | null,
   clinic: AppClinicRow,
 ): Promise<PurgeResult> {
   try {
@@ -39,8 +42,13 @@ async function deactivateClinicWithSlug(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
       body: JSON.stringify({
+        // Send every alias variant — sub-apps validate against subsets of the
+        // canonical contract; sending all is harmless for the strict ones and
+        // ignored by the lax ones.
+        app_id: appId,
         company_slug: companySlug,
         company_name: companySlug,
+        ...(hubCompanyId ? { hub_company_id: hubCompanyId, hubCompanyId } : {}),
         clinics: [{ id: clinic.id, name: clinic.name, active: false }],
       }),
       signal: AbortSignal.timeout(10_000),
@@ -61,16 +69,17 @@ async function deactivateClinicWithSlug(
  */
 async function deactivateClinic(
   appUrl: string,
+  appId: string,
   secret: string,
-  candidates: string[],
+  candidates: { slug: string; hubCompanyId: string | null }[],
   clinic: AppClinicRow,
 ): Promise<PurgeResult> {
   let last: PurgeResult = { ok: false, status: 0, body: 'no candidates' }
-  for (const slug of candidates) {
-    const r = await deactivateClinicWithSlug(appUrl, secret, slug, clinic)
+  for (const { slug, hubCompanyId } of candidates) {
+    const r = await deactivateClinicWithSlug(appUrl, appId, secret, slug, hubCompanyId, clinic)
     if (r.ok) return r
     last = r
-    // For 404 (Company not found) keep trying. For 401/403/500 stop early.
+    // For 404/400 keep trying. For 401/403/500 stop early.
     if (r.status !== 404 && r.status !== 400) break
   }
   return last
@@ -87,10 +96,15 @@ async function main() {
   let totalSucceeded = 0
   let totalFailed = 0
 
-  // Candidate company_slugs to try, in order. Real Hub-pushed empresas first
-  // (so strict sub-apps find a matching Company); placeholder last for apps
-  // that auto-create on the fly.
-  const SLUG_CANDIDATES = ['vidental', 'viadental', 'impulsodent', 'impladent', 'hub-orphan-purge']
+  // Build candidate slugs from current Hub state. Real Hub empresas first
+  // (so strict sub-apps find a matching Company AND a matching hub_company_id);
+  // placeholder last for apps that auto-create on the fly.
+  const realCompanies = await prisma.company.findMany({ select: { id: true, slug: true } })
+  const candidates: { slug: string; hubCompanyId: string | null }[] = [
+    ...realCompanies.map((c) => ({ slug: c.slug, hubCompanyId: c.id })),
+    { slug: 'hub-orphan-purge', hubCompanyId: null },
+  ]
+  console.log(`[purge-clinics] candidates: ${candidates.map((c) => c.slug).join(', ')}`)
 
   for (const app of report.apps) {
     if (!app.app_url || app.orphan_clinics.length === 0) continue
@@ -105,7 +119,7 @@ async function main() {
     }
 
     for (const c of app.orphan_clinics) {
-      const res = await deactivateClinic(app.app_url, secret, SLUG_CANDIDATES, c)
+      const res = await deactivateClinic(app.app_url, app.app_id, secret, candidates, c)
       if (res.ok) {
         totalSucceeded++
         console.log(`  ✓ ${c.name} → ${res.status}`)

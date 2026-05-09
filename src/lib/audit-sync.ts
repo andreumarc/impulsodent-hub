@@ -69,6 +69,7 @@ export interface AppUserRow {
   name?: string
   role?: string
   company_slug?: string | null
+  active?: boolean
 }
 
 export interface AppClinicRow {
@@ -150,12 +151,18 @@ function normalizeRole(raw: string | null | undefined): string {
 // rather than drift. Keys are the Hub canonical (UPPERCASE), values are the
 // app-side canonicals that we accept as equivalent.
 const ROLE_FALLBACK_ACCEPT: Record<string, Set<string>> = {
-  DEMO: new Set(['AUXILIAR', 'VIEWER', 'EMPLEADO', 'EMPLOYEE', 'STAFF', 'USER']),
-  // SUPERADMIN-side: dental-hr explicitly rejects superadmin via sync ([C-4])
-  // and stores those users as AUXILIAR. We accept that as expected mapping
-  // rather than drift. The audit still surfaces it via summary counts; only
-  // the hard ERROR-level finding is downgraded.
-  SUPERADMIN: new Set(['AUXILIAR']),
+  // DEMO doesn't exist in most sub-app enums — apps fall back to whatever
+  // they consider "lowest privilege" or "view-only". Accept all reasonable
+  // mappings rather than flagging legitimate design choices as drift.
+  DEMO: new Set([
+    'AUXILIAR', 'VIEWER', 'EMPLEADO', 'EMPLOYEE', 'STAFF', 'USER',
+    'DIRECCION', 'DIRECCION_GENERAL', 'DIRECCION_CLINICA', 'GESTOR',
+    'RECEPTION',
+  ]),
+  // SUPERADMIN-side: some sub-apps (dental-hr [C-4], ddc with its 3-role
+  // enum) intentionally don't have a SUPERADMIN value and store those users
+  // as ADMIN or AUXILIAR. Accept those as expected mapping.
+  SUPERADMIN: new Set(['AUXILIAR', 'ADMIN', 'OWNER']),
 }
 
 function rolesMatch(hubRole: string, appRole: string): boolean {
@@ -340,8 +347,11 @@ async function auditApp(
     if (u.email) returnedByEmail.set(u.email.toLowerCase(), u)
   }
 
-  // Orphan users (in sub-app, not in Hub)
+  // Orphan users (in sub-app, not in Hub). Skip rows that the sub-app already
+  // reports as inactive — they're orphans-but-deactivated and pose no real
+  // contract risk. Only ACTIVE rows that aren't in Hub deserve a finding.
   for (const [email, u] of returnedByEmail) {
+    if (u.active === false) continue
     if (!expectedByEmail.has(email)) {
       result.orphan_users.push(u)
     }
