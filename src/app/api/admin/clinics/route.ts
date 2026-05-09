@@ -4,16 +4,12 @@ import { getSession } from '@/lib/auth'
 import { createClinic, listClinicsByCompany, listAllClinics, upsertClinic, getCompanyAppAccess } from '@/lib/db'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permissions'
+import { APP_URLS, APP_IDS_WITH_CLINICS } from '@/lib/app-urls'
 
-const APP_URLS: Record<string, string | undefined> = {
-  clinicpnl:     process.env.NEXT_PUBLIC_URL_CLINICPNL,
-  dentalhr:      process.env.NEXT_PUBLIC_URL_DENTALHR,
-  dentalreports: process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  nexora:        process.env.NEXT_PUBLIC_URL_NEXORA,
-  fichaje:       process.env.NEXT_PUBLIC_URL_FICHAJE,
-  zentrix:       process.env.NEXT_PUBLIC_URL_ZENTRIX,
-  spendflow:     process.env.NEXT_PUBLIC_URL_SPENDFLOW,
-}
+// Only push clinic creates to apps that have a real Clinic model.
+const CLINIC_APP_URLS: Record<string, string | undefined> = Object.fromEntries(
+  APP_IDS_WITH_CLINICS.map((id) => [id, APP_URLS[id]]),
+)
 
 // GET /api/admin/clinics?company_id=X  — list Hub-known clinics for company
 // GET /api/admin/clinics?company_id=X&pull=1  — pull fresh from sub-apps first
@@ -51,7 +47,7 @@ export async function GET(req: NextRequest) {
   if (pull) {
     // Pull clinics from all sub-apps for this company
     await Promise.allSettled(
-      Object.entries(APP_URLS)
+      Object.entries(CLINIC_APP_URLS)
         .filter((e): e is [string, string] => Boolean(e[1]))
         .map(async ([appId, appUrl]) => {
           try {
@@ -111,7 +107,7 @@ export async function POST(req: NextRequest) {
   const external_id = body.external_id ?? `hub_${randomBytes(8).toString('hex')}`
 
   // Apps enabled for this company
-  const enabledApps = (await getCompanyAppAccess(company_id)).filter((a) => a in APP_URLS)
+  const enabledApps = (await getCompanyAppAccess(company_id)).filter((a) => a in CLINIC_APP_URLS)
 
   // Resolve target apps for this clinic:
   //  - body.app_ids = 'ALL' or missing  → all enabled apps
@@ -142,11 +138,11 @@ export async function POST(req: NextRequest) {
 
   // Best-effort fan-out to each selected sub-app
   try {
-    const company = await prisma.company.findUnique({ where: { id: company_id }, select: { slug: true } })
+    const company = await prisma.company.findUnique({ where: { id: company_id }, select: { id: true, slug: true, name: true } })
     const secret = process.env.JWT_SECRET ?? ''
     if (company?.slug && secret && targetApps.length > 0) {
       await Promise.allSettled(targetApps.map(async (app_id) => {
-        const appUrl = APP_URLS[app_id]
+        const appUrl = CLINIC_APP_URLS[app_id]
         if (!appUrl) return
         await fetch(`${appUrl}/api/sync/clinics`, {
           method: 'POST',
@@ -154,6 +150,8 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             app_id,
             company_slug: company.slug,
+            company_name: company.name,
+            hub_company_id: company.id,
             clinics: [{ id: external_id, name: trimmedName, active: true }],
           }),
           signal: AbortSignal.timeout(6000),
