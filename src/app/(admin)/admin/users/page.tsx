@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react'
+import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { HUB_ROLES, getRoleStyle } from '@/lib/roles'
 
 const PLAN_COLORS: Record<string, string> = {
@@ -149,8 +149,6 @@ function PasswordModal({ user, onClose }: { user: HubUser; onClose: () => void }
 export default function UsersPage() {
   const [users, setUsers] = useState<HubUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [pulling, setPulling] = useState(false)
-  const [pullSummary, setPullSummary] = useState<{ app_id: string; ok: boolean; created: number; updated: number; error?: string }[] | null>(null)
   const [roleFilter, setRoleFilter] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pwdUser, setPwdUser] = useState<HubUser | null>(null)
@@ -163,17 +161,6 @@ export default function UsersPage() {
   useEffect(() => {
     loadUsers().finally(() => setLoading(false))
   }, [])
-
-  async function handlePull() {
-    setPulling(true); setPullSummary(null)
-    try {
-      const r = await fetch('/api/admin/users?pull=1')
-      const d = await r.json() as { pull?: typeof pullSummary; users?: HubUser[] }
-      if (Array.isArray(d.users)) setUsers(d.users)
-      if (Array.isArray(d.pull)) setPullSummary(d.pull)
-    } catch { /* non-fatal */ }
-    finally { setPulling(false) }
-  }
 
   const tabs = useMemo(() => {
     const counts: Record<string, number> = { all: users.length }
@@ -224,14 +211,6 @@ export default function UsersPage() {
           <p className="text-sm text-gray-500 mt-0.5">{users.length} usuario{users.length !== 1 ? 's' : ''} registrado{users.length !== 1 ? 's' : ''} en el sistema</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handlePull}
-            disabled={pulling}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${pulling ? 'animate-spin' : ''}`} />
-            {pulling ? 'Sincronizando…' : 'Pull desde apps'}
-          </button>
           <Link href="/admin/users/new"
             className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors">
             <Plus className="w-4 h-4" />
@@ -239,26 +218,6 @@ export default function UsersPage() {
           </Link>
         </div>
       </div>
-
-      {pullSummary && (
-        <div className="mb-5 rounded-xl border border-gray-100 bg-white p-3 text-xs text-gray-600">
-          <div className="font-semibold text-gray-700 mb-1.5">Resultado de la sincronización</div>
-          <div className="flex flex-wrap gap-2">
-            {pullSummary.map((s) => (
-              <span
-                key={s.app_id}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border ${
-                  s.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
-                }`}
-                title={s.error}
-              >
-                <span className="font-semibold uppercase tracking-wide">{s.app_id}</span>
-                {s.ok ? <span>+{s.created} nuevos · {s.updated} actualizados</span> : <span>{s.error || 'error'}</span>}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Role tabs */}
       <div className="flex gap-2 mb-5 flex-wrap items-center">

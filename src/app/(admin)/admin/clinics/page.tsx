@@ -110,7 +110,6 @@ export default function ClinicsPage() {
   const [companyFilter, setCompanyFilter] = useState<string>('all')
   const [appFilter, setAppFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [pulling, setPulling] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
@@ -195,18 +194,6 @@ export default function ClinicsPage() {
       return true
     })
   }, [groups, companyFilter, appFilter, statusFilter])
-
-  async function handlePull() {
-    if (companyFilter === 'all') {
-      alert('Selecciona una empresa primero para traer sus clínicas desde los sub-aplicativos.')
-      return
-    }
-    setPulling(true)
-    try {
-      await fetch(`/api/admin/clinics?company_id=${encodeURIComponent(companyFilter)}&pull=1`)
-      await loadClinics()
-    } finally { setPulling(false) }
-  }
 
   function openNewModal() {
     setNewCompanyId('')
@@ -496,15 +483,6 @@ export default function ClinicsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handlePull}
-            disabled={pulling || companyFilter === 'all'}
-            title={companyFilter === 'all' ? 'Selecciona una empresa para sincronizar' : 'Traer clínicas desde sub-aplicativos'}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${pulling ? 'animate-spin' : ''}`} />
-            {pulling ? 'Sincronizando…' : 'Pull desde apps'}
-          </button>
           <button
             onClick={openNewModal}
             className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors"

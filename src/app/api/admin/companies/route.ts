@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { listCompaniesWithStats, createCompany, upsertExternalCompany } from '@/lib/db'
+import { listCompaniesWithStats, createCompany } from '@/lib/db'
 import { pushCompanyToApps } from '@/lib/sync'
 import { hasPermission } from '@/lib/permissions'
-import { APP_URLS } from '@/lib/app-urls'
 
 async function requireCompaniesManage() {
   const session = await getSession()
@@ -11,62 +10,10 @@ async function requireCompaniesManage() {
   return session
 }
 
-export async function GET(req: NextRequest) {
+// One-way sync rule: data flows Hub → sub-apps. Pulling companies from
+// sub-apps into the Hub is forbidden (see feedback_hub_oneway_sync.md).
+export async function GET() {
   if (!await requireCompaniesManage()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  const pull = req.nextUrl.searchParams.get('pull') === '1'
-  const onlyApp = req.nextUrl.searchParams.get('app_id') ?? undefined
-
-  if (pull) {
-    const secret = process.env.JWT_SECRET ?? ''
-    const summary: { app_id: string; ok: boolean; created: number; updated: number; error?: string }[] = []
-
-    await Promise.allSettled(
-      Object.entries(APP_URLS)
-        .filter((e): e is [string, string] => Boolean(e[1]))
-        .filter(([appId]) => !onlyApp || onlyApp === appId)
-        .map(async ([appId, appUrl]) => {
-          try {
-            const r = await fetch(`${appUrl.replace(/\/$/, '')}/api/sync/companies`, {
-              headers: { Authorization: `Bearer ${secret}` },
-              signal: AbortSignal.timeout(15000),
-            })
-            if (!r.ok) {
-              summary.push({ app_id: appId, ok: false, created: 0, updated: 0, error: `HTTP ${r.status}` })
-              return
-            }
-            const data = await r.json() as Array<{
-              name: string; slug: string; cif?: string | null; city?: string | null
-              email?: string | null; phone?: string | null
-            }>
-            let created = 0, updated = 0
-            for (const c of data) {
-              if (!c?.slug || !c?.name) continue
-              try {
-                const res = await upsertExternalCompany({
-                  name:  c.name,
-                  slug:  c.slug,
-                  cif:   c.cif   ?? null,
-                  city:  c.city  ?? null,
-                  email: c.email ?? null,
-                  phone: c.phone ?? null,
-                })
-                if (res.created) created++; else updated++
-              } catch { /* non-fatal */ }
-            }
-            summary.push({ app_id: appId, ok: true, created, updated })
-          } catch (err) {
-            summary.push({
-              app_id: appId, ok: false, created: 0, updated: 0,
-              error: err instanceof Error ? err.message : 'unknown',
-            })
-          }
-        }),
-    )
-
-    const companies = await listCompaniesWithStats()
-    return NextResponse.json({ pull: summary, companies })
-  }
 
   const companies = await listCompaniesWithStats()
   return NextResponse.json(companies)
@@ -102,6 +49,7 @@ export async function POST(req: NextRequest) {
       max_users,
     })
     pushCompanyToApps({
+      id: company.id,
       slug: company.slug,
       name: company.name,
       taxId: company.cif,

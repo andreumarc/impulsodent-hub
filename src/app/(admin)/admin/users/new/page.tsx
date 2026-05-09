@@ -30,12 +30,11 @@ export default function NewUserPage() {
     fetch('/api/admin/companies').then((r) => r.json()).then(setCompanies).catch(() => null)
   }, [])
 
-  const fetchClinics = useCallback(async (company_id: string, pull = false) => {
+  const fetchClinics = useCallback(async (company_id: string) => {
     if (!company_id) { setClinics([]); return }
     setLoadingClinics(true)
     try {
-      const url = `/api/admin/clinics?company_id=${company_id}${pull ? '&pull=1' : ''}`
-      const data = await fetch(url).then((r) => r.json())
+      const data = await fetch(`/api/admin/clinics?company_id=${company_id}`).then((r) => r.json())
       setClinics(Array.isArray(data) ? data : [])
     } finally {
       setLoadingClinics(false)
@@ -53,10 +52,7 @@ export default function NewUserPage() {
 
   useEffect(() => {
     if (!primaryCompanyId) { setClinics([]); return }
-    ;(async () => {
-      await fetchClinics(primaryCompanyId)
-      await fetchClinics(primaryCompanyId, true)
-    })()
+    void fetchClinics(primaryCompanyId)
   }, [primaryCompanyId, fetchClinics])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -187,7 +183,7 @@ export default function NewUserPage() {
           companyId={form.company_id}
           clinics={clinics}
           loadingClinics={loadingClinics}
-          onSync={() => fetchClinics(form.company_id, true)}
+          onSync={() => fetchClinics(form.company_id)}
           accessAll={clinicAccessAll}
           setAccessAll={setClinicAccessAll}
           selectedExternalIds={selectedExternalIds}

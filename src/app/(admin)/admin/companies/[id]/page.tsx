@@ -35,20 +35,18 @@ export default function CompanyDetailPage() {
   // Clinics state
   const [clinics, setClinics] = useState<Clinic[]>([])
   const [clinicsLoading, setClinicsLoading] = useState(false)
-  const [clinicsPulling, setClinicsPulling] = useState(false)
   const [newClinic, setNewClinic] = useState({ name: '' })
   const [addingClinic, setAddingClinic] = useState(false)
   const [showAddClinic, setShowAddClinic] = useState(false)
 
-  async function loadClinics(pull = false) {
-    setClinicsLoading(!pull); if (pull) setClinicsPulling(true)
+  async function loadClinics() {
+    setClinicsLoading(true)
     try {
-      const qs = pull ? `?company_id=${id}&pull=1` : `?company_id=${id}`
-      const r = await fetch(`/api/admin/clinics${qs}`)
+      const r = await fetch(`/api/admin/clinics?company_id=${id}`)
       const d = await r.json()
       if (Array.isArray(d)) setClinics(d)
     } catch { /* non-fatal */ }
-    finally { setClinicsLoading(false); setClinicsPulling(false) }
+    finally { setClinicsLoading(false) }
   }
 
   useEffect(() => {
@@ -59,7 +57,7 @@ export default function CompanyDetailPage() {
       .then((r) => r.json())
       .then((d) => Array.isArray(d) ? setUsers(d.filter((u: HubUser) => true)) : null)
       .catch(() => null)
-    loadClinics(false)
+    loadClinics()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -75,7 +73,7 @@ export default function CompanyDetailPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al crear clínica'); return }
       // After create, refresh the full list — backend fans out to all enabled apps
-      await loadClinics(false)
+      await loadClinics()
       setNewClinic({ name: '' })
       setShowAddClinic(false)
       setSuccess('Clínica creada y propagada a las apps activas')
@@ -297,11 +295,6 @@ export default function CompanyDetailPage() {
             <h3 className="text-sm font-semibold text-gray-800">Clínicas ({clinics.length})</h3>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => loadClinics(true)} disabled={clinicsPulling}
-              className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60">
-              <RefreshCw className={`w-3.5 h-3.5 ${clinicsPulling ? 'animate-spin' : ''}`} />
-              {clinicsPulling ? 'Sincronizando…' : 'Pull desde apps'}
-            </button>
             <button onClick={() => setShowAddClinic(!showAddClinic)}
               className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-colors">
               <Plus className="w-3.5 h-3.5" />
@@ -312,7 +305,7 @@ export default function CompanyDetailPage() {
 
         <p className="text-xs text-gray-400 mb-3">
           Las clínicas pertenecen a la empresa. Al crearlas, se propagan automáticamente a todas las aplicaciones activas
-          de la empresa. El pull importa las existentes desde cada app.
+          de la empresa.
         </p>
 
         {showAddClinic && (
@@ -344,7 +337,7 @@ export default function CompanyDetailPage() {
           <div className="py-8 text-center text-gray-400 text-sm">Cargando clínicas…</div>
         ) : clinics.length === 0 ? (
           <div className="py-8 text-center text-gray-400 text-sm">
-            Aún no hay clínicas. Usa <span className="font-medium text-gray-500">Pull desde apps</span> para importarlas o <span className="font-medium text-gray-500">Nueva clínica</span> para crear una.
+            Aún no hay clínicas. Usa <span className="font-medium text-gray-500">Nueva clínica</span> para crear una.
           </div>
         ) : (
           <div className="space-y-4">

@@ -29,12 +29,11 @@ export default function EditUserPage() {
   const [deleting, setDeleting] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
-  const fetchClinics = useCallback(async (company_id: string, pull = false): Promise<HubClinic[]> => {
+  const fetchClinics = useCallback(async (company_id: string): Promise<HubClinic[]> => {
     if (!company_id) { setClinics([]); return [] }
     setLoadingClinics(true)
     try {
-      const url = `/api/admin/clinics?company_id=${company_id}${pull ? '&pull=1' : ''}`
-      const data = await fetch(url).then((r) => r.json())
+      const data = await fetch(`/api/admin/clinics?company_id=${company_id}`).then((r) => r.json())
       const list = Array.isArray(data) ? data : []
       setClinics(list)
       return list
@@ -77,8 +76,8 @@ export default function EditUserPage() {
         const extIds = new Set<string>()
         for (const c of list) if (allHubIds.has(c.id)) extIds.add(c.external_id)
         setSelectedExternalIds(Array.from(extIds))
-        // Auto-pull in background
-        fetchClinics(user.company_id, true)
+        // Refresh from Hub to ensure latest state
+        fetchClinics(user.company_id)
       }
     }).catch(() => setNotFound(true))
   }, [id, fetchClinics])
@@ -94,10 +93,7 @@ export default function EditUserPage() {
 
   useEffect(() => {
     if (!primaryCompanyId) { setClinics([]); return }
-    ;(async () => {
-      await fetchClinics(primaryCompanyId)
-      await fetchClinics(primaryCompanyId, true)
-    })()
+    void fetchClinics(primaryCompanyId)
   }, [primaryCompanyId, fetchClinics])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -250,7 +246,7 @@ export default function EditUserPage() {
           companyId={form.company_id}
           clinics={clinics}
           loadingClinics={loadingClinics}
-          onSync={() => { fetchClinics(form.company_id, true) }}
+          onSync={() => { fetchClinics(form.company_id) }}
           accessAll={clinicAccessAll}
           setAccessAll={setClinicAccessAll}
           selectedExternalIds={selectedExternalIds}

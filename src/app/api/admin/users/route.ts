@@ -5,12 +5,10 @@ import {
   listUsers, createUser, getUserByEmail,
   setUserAppRoles, setUserClinicAccess, setUserClinicAccessAll,
   setUserCompanyAccess, setUserCompanyAccessAll,
-  upsertExternalUser,
 } from '@/lib/db'
 import { getInitials } from '@/lib/utils'
 import { pushUserToApps } from '@/lib/sync'
 import { hasPermission, canCreateRole, type HubRole } from '@/lib/permissions'
-import { APP_URLS } from '@/lib/app-urls'
 
 async function requireSuperadmin() {
   const session = await getSession()
@@ -24,13 +22,13 @@ async function requireAdmin() {
   return session
 }
 
+// One-way sync rule: data flows Hub → sub-apps. Pulling users from sub-apps
+// into the Hub is forbidden (see feedback_hub_oneway_sync.md).
 export async function GET(req: NextRequest) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   let companyId = req.nextUrl.searchParams.get('companyId')
-  const pull      = req.nextUrl.searchParams.get('pull') === '1'
-  const onlyApp   = req.nextUrl.searchParams.get('app_id') ?? undefined
 
   // Admin is scoped to their own company
   if (session.role === 'admin') {
@@ -39,61 +37,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
     }
     companyId = session.companyId
-  }
-
-  if (pull) {
-    const secret = process.env.JWT_SECRET ?? ''
-    const summary: { app_id: string; ok: boolean; created: number; updated: number; error?: string }[] = []
-
-    await Promise.allSettled(
-      Object.entries(APP_URLS)
-        .filter((e): e is [string, string] => Boolean(e[1]))
-        .filter(([appId]) => !onlyApp || onlyApp === appId)
-        .map(async ([appId, appUrl]) => {
-          try {
-            const qs = companyId ? `?company_id=${encodeURIComponent(companyId)}` : ''
-            const r = await fetch(`${appUrl.replace(/\/$/, '')}/api/sync/users${qs}`, {
-              headers: { Authorization: `Bearer ${secret}` },
-              signal: AbortSignal.timeout(15000),
-            })
-            if (!r.ok) {
-              summary.push({ app_id: appId, ok: false, created: 0, updated: 0, error: `HTTP ${r.status}` })
-              return
-            }
-            const data = await r.json() as Array<{
-              email: string; name?: string; role?: string; company_slug?: string | null
-            }>
-            let created = 0, updated = 0
-            for (const u of data) {
-              if (!u?.email) continue
-              try {
-                const res = await upsertExternalUser({
-                  email:        u.email,
-                  name:         u.name || u.email,
-                  role:         (u.role || 'admin').toLowerCase(),
-                  company_slug: u.company_slug ?? null,
-                  app_id:       appId,
-                  app_role:     u.role,
-                })
-                if (res.created) created++; else updated++
-              } catch { /* row-level errors are non-fatal */ }
-            }
-            summary.push({ app_id: appId, ok: true, created, updated })
-          } catch (err) {
-            summary.push({
-              app_id: appId, ok: false, created: 0, updated: 0,
-              error: err instanceof Error ? err.message : 'unknown',
-            })
-          }
-        }),
-    )
-
-    const all = await listUsers()
-    const users = companyId ? all.filter((u) => u.company_id === companyId) : all
-    return NextResponse.json({
-      pull: summary,
-      users: users.map((u) => ({ ...u, password_hash: undefined })),
-    })
   }
 
   const all = await listUsers()

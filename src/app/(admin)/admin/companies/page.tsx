@@ -35,8 +35,6 @@ function formatDate(iso: string) {
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<CompanyWithStats[]>([])
   const [loading, setLoading] = useState(true)
-  const [pulling, setPulling] = useState(false)
-  const [pullSummary, setPullSummary] = useState<{ app_id: string; ok: boolean; created: number; updated: number; error?: string }[] | null>(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
@@ -53,17 +51,6 @@ export default function CompaniesPage() {
   }
 
   useEffect(() => { loadCompanies().finally(() => setLoading(false)) }, [])
-
-  async function handlePull() {
-    setPulling(true); setPullSummary(null)
-    try {
-      const r = await fetch('/api/admin/companies?pull=1')
-      const d = await r.json() as { pull?: typeof pullSummary; companies?: CompanyWithStats[] }
-      if (Array.isArray(d.companies)) setCompanies(d.companies)
-      if (Array.isArray(d.pull)) setPullSummary(d.pull)
-    } catch { /* non-fatal */ }
-    finally { setPulling(false) }
-  }
 
   const tabs = useMemo(() => [
     { value: 'all',      label: 'Todas',    count: companies.length },
@@ -170,14 +157,6 @@ export default function CompaniesPage() {
           <p className="text-sm text-gray-500 mt-0.5">{companies.length} empresa{companies.length !== 1 ? 's' : ''} registrada{companies.length !== 1 ? 's' : ''} en el sistema</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handlePull}
-            disabled={pulling}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${pulling ? 'animate-spin' : ''}`} />
-            {pulling ? 'Sincronizando…' : 'Pull desde apps'}
-          </button>
           <Link href="/admin/companies/new"
             className="flex items-center gap-2 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors">
             <Plus className="w-4 h-4" />
@@ -185,26 +164,6 @@ export default function CompaniesPage() {
           </Link>
         </div>
       </div>
-
-      {pullSummary && (
-        <div className="mb-5 rounded-xl border border-gray-100 bg-white p-3 text-xs text-gray-600">
-          <div className="font-semibold text-gray-700 mb-1.5">Resultado de la sincronización</div>
-          <div className="flex flex-wrap gap-2">
-            {pullSummary.map((s) => (
-              <span
-                key={s.app_id}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border ${
-                  s.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
-                }`}
-                title={s.error}
-              >
-                <span className="font-semibold uppercase tracking-wide">{s.app_id}</span>
-                {s.ok ? <span>+{s.created} nuevos · {s.updated} actualizados</span> : <span>{s.error || 'error'}</span>}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Status tabs */}
       <div className="flex gap-2 mb-5 flex-wrap">

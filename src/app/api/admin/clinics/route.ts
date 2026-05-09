@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { getSession } from '@/lib/auth'
-import { createClinic, listClinicsByCompany, listAllClinics, upsertClinic, getCompanyAppAccess } from '@/lib/db'
+import { createClinic, listClinicsByCompany, listAllClinics, getCompanyAppAccess } from '@/lib/db'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permissions'
 import { APP_URLS, APP_IDS_WITH_CLINICS } from '@/lib/app-urls'
@@ -12,8 +12,8 @@ const CLINIC_APP_URLS: Record<string, string | undefined> = Object.fromEntries(
 )
 
 // GET /api/admin/clinics?company_id=X  — list Hub-known clinics for company
-// GET /api/admin/clinics?company_id=X&pull=1  — pull fresh from sub-apps first
-// Both superadmin and admin can list clinics.
+// One-way sync rule: data flows Hub → sub-apps. Pulling clinics from sub-apps
+// is forbidden (see feedback_hub_oneway_sync.md).
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session || !hasPermission(session.role, 'clinics:manage')) {
@@ -21,8 +21,6 @@ export async function GET(req: NextRequest) {
   }
 
   let company_id = req.nextUrl.searchParams.get('company_id')
-  const pull = req.nextUrl.searchParams.get('pull') === '1'
-  const secret = process.env.JWT_SECRET ?? ''
 
   // No company_id:
   //   - superadmin → list across all companies (top-level /admin/clinics)
@@ -42,38 +40,6 @@ export async function GET(req: NextRequest) {
   // Non-superadmin roles cannot inspect other companies' clinics
   if (session.role !== 'superadmin' && session.companyId && company_id !== session.companyId) {
     return NextResponse.json({ error: 'Forbidden (cross-company)' }, { status: 403 })
-  }
-
-  if (pull) {
-    // Pull clinics from all sub-apps for this company
-    await Promise.allSettled(
-      Object.entries(CLINIC_APP_URLS)
-        .filter((e): e is [string, string] => Boolean(e[1]))
-        .map(async ([appId, appUrl]) => {
-          try {
-            const syncPath = '/api/sync/clinics'
-            const r = await fetch(`${appUrl}${syncPath}?company_id=${company_id}`, {
-              headers: { Authorization: `Bearer ${secret}` },
-            })
-            if (!r.ok) return
-            const data = await r.json() as { id: string; name: string; active?: boolean }[]
-            await Promise.all(
-              data
-                // Skip inactive/deleted clinics from sub-apps so deletes in Hub don't bounce back
-                .filter((c) => c.active !== false)
-                .map((c) =>
-                  upsertClinic({
-                    external_id: c.id,
-                    app_id: appId,
-                    name: c.name,
-                    company_id,
-                    active: true,
-                  }),
-                ),
-            )
-          } catch { /* non-fatal */ }
-        }),
-    )
   }
 
   const clinics = await listClinicsByCompany(company_id)
