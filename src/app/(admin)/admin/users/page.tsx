@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react'
+import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw, Trash2, LayoutGrid } from 'lucide-react'
 import { HUB_ROLES, getRoleStyle } from '@/lib/roles'
 import { UserAppsCell } from '@/components/admin/UserAppsCell'
+import { UserAppsDrawer } from '@/components/admin/UserAppsDrawer'
 
 const PLAN_COLORS: Record<string, string> = {
   free: 'bg-gray-100 text-gray-500',
@@ -156,6 +157,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pwdUser, setPwdUser] = useState<HubUser | null>(null)
+  const [drawerUser, setDrawerUser] = useState<HubUser | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   function loadUsers() {
@@ -218,6 +220,15 @@ export default function UsersPage() {
   return (
     <div className="animate-fade-in">
       {pwdUser && <PasswordModal user={pwdUser} onClose={() => setPwdUser(null)} />}
+      <UserAppsDrawer
+        userId={drawerUser?.id ?? null}
+        userName={drawerUser?.name ?? ''}
+        userEmail={drawerUser?.email ?? ''}
+        onClose={() => setDrawerUser(null)}
+        onSave={(uid, appRoles) => {
+          setUsers((prev) => prev.map((u) => u.id === uid ? { ...u, app_roles: appRoles } : u))
+        }}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -356,7 +367,7 @@ export default function UsersPage() {
                       <CompaniesCell user={u} />
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
-                      <UserAppsCell user={u} />
+                      <UserAppsCell user={u} onOpenDrawer={() => setDrawerUser(u)} />
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${u.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
@@ -390,6 +401,11 @@ export default function UsersPage() {
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-brand-600 hover:bg-gray-100 rounded-lg transition-colors">
                           <KeyRound className="w-3.5 h-3.5" />
                           <span className="hidden sm:inline">Contraseña</span>
+                        </button>
+                        <button onClick={() => setDrawerUser(u)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-brand-600 hover:bg-gray-100 rounded-lg transition-colors">
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Apps</span>
                         </button>
                         <button onClick={() => toggleActive(u)}
                           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
