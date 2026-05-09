@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Plus, Power, KeyRound, ChevronRight, Users, X, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react'
 import { HUB_ROLES, getRoleStyle } from '@/lib/roles'
+import { UserAppsCell } from '@/components/admin/UserAppsCell'
 
 const PLAN_COLORS: Record<string, string> = {
   free: 'bg-gray-100 text-gray-500',
@@ -18,6 +19,7 @@ interface HubUser {
   companies?: Array<{ id: string; name: string; slug: string }>
   company_access_all?: boolean
   subscription_plan: string; subscription_expires_at: string | null
+  app_roles?: Array<{ app_id: string; role: string }>
 }
 
 function getInitials(name: string) {
@@ -316,6 +318,7 @@ export default function UsersPage() {
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Email</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Rol</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Empresa</th>
+                <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Apps</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">Estado</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Suscripción</th>
                 <th className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Alta</th>
@@ -351,6 +354,9 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
                       <CompaniesCell user={u} />
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <UserAppsCell user={u} />
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${u.active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100'}`}>
