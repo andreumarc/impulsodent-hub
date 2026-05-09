@@ -45,9 +45,15 @@ export const APP_URLS: Record<string, string | undefined> = {
 }
 
 /**
- * Apps that have a real `Clinic` model in their database. spendflow / nexora /
- * impulsodent-talent / clinicleads / clinicnps are company-scoped
- * (no per-clinic entity) — pushing a clinic to them is a no-op.
+ * Apps that have a real `Clinic` model in their database. Hub fans clinic
+ * creates out to every app in this list (intersected with the company's
+ * granted apps). Apps without a Clinic model — historically commented out —
+ * are intentionally absent so the fan-out doesn't error.
+ *
+ * All apps in this list have been verified to (a) declare a Clinic model in
+ * their prisma schema and (b) implement POST /api/sync/clinics that honors
+ * the canonical `{ company_slug, clinics: [{ id, name, active }] }` payload
+ * (or accept `hub_company_id` as an alias).
  */
 export const APP_IDS_WITH_CLINICS: ReadonlyArray<string> = [
   'clinicpnl',
@@ -60,12 +66,16 @@ export const APP_IDS_WITH_CLINICS: ReadonlyArray<string> = [
   'clinicstock',
   'impulsodent-crm',
   'duediligence',
+  'ddc',
   'nexora',
   'spendflow',
   'talent',
   'impulsodent-talent',
   'historiales',
   'casos-clinicos',
+  'clinicleads',
+  'clinicnps',
+  'sync-adapter',
 ]
 
 /**
