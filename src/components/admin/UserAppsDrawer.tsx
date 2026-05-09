@@ -48,7 +48,10 @@ export function UserAppsDrawer({
     const controller = new AbortController()
     setLoading(true); setError(''); setSuccess(false)
     fetch(`/api/admin/users/${userId}`, { signal: controller.signal })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('load_failed')
+        return r.json()
+      })
       .then((u: { app_roles?: Array<{ app_id: string; role: string }> }) => {
         const initial: Record<string, string> = {}
         for (const r of u.app_roles ?? []) initial[r.app_id] = r.role
@@ -56,7 +59,9 @@ export function UserAppsDrawer({
         setInitialAppRoles(initial)
       })
       .catch((err: Error) => { if (err.name !== 'AbortError') setError('Error cargando usuario') })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
     return () => controller.abort()
   }, [userId])
 
