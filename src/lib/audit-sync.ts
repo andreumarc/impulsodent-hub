@@ -77,15 +77,24 @@ export interface AppClinicRow {
   name: string
   active: boolean
   // Some sub-apps return `isActive` instead of (or alongside) `active`.
-  // The audit normalizes via clinicIsActive() below.
   isActive?: boolean
+  // Canonical Hub external_id when the sub-app stores the local `id` as a
+  // separate auto-generated key. The audit prefers this for matching.
+  hub_clinic_id?: string | null
+  hubClinicId?: string | null
 }
 
 function clinicIsActive(c: AppClinicRow): boolean {
-  // Treat the row as active unless either field explicitly says false.
   if (c.active === false) return false
   if (c.isActive === false) return false
   return true
+}
+
+function clinicCanonicalId(c: AppClinicRow): string {
+  // Prefer the sub-app's stored Hub external_id over its local primary key.
+  // Many sub-apps generate their own cuid/uuid for `id` while storing the
+  // canonical Hub id under `hubClinicId` / `hub_clinic_id`.
+  return c.hub_clinic_id ?? c.hubClinicId ?? c.id
 }
 
 export interface AppAuditResult {
@@ -161,18 +170,34 @@ function normalizeRole(raw: string | null | undefined): string {
 // rather than drift. Keys are the Hub canonical (UPPERCASE), values are the
 // app-side canonicals that we accept as equivalent.
 const ROLE_FALLBACK_ACCEPT: Record<string, Set<string>> = {
-  // DEMO doesn't exist in most sub-app enums — apps fall back to whatever
-  // they consider "lowest privilege" or "view-only". Accept all reasonable
-  // mappings rather than flagging legitimate design choices as drift.
+  // DEMO doesn't exist in most sub-app enums — accept all reasonable mappings.
   DEMO: new Set([
     'AUXILIAR', 'VIEWER', 'EMPLEADO', 'EMPLOYEE', 'STAFF', 'USER',
     'DIRECCION', 'DIRECCION_GENERAL', 'DIRECCION_CLINICA', 'GESTOR',
     'RECEPTION',
   ]),
-  // SUPERADMIN-side: some sub-apps (dental-hr [C-4], ddc with its 3-role
-  // enum) intentionally don't have a SUPERADMIN value and store those users
-  // as ADMIN or AUXILIAR. Accept those as expected mapping.
+  // SUPERADMIN: some sub-apps (dental-hr, ddc) collapse to ADMIN/AUXILIAR/OWNER.
   SUPERADMIN: new Set(['AUXILIAR', 'ADMIN', 'OWNER']),
+  // DIRECCION_CLINICA: apps with simpler role enums collapse this into a
+  // generic 'DIRECCION', 'DIRECTOR' or 'DIRECCION_GENERAL'. Some legacy
+  // schemas use 'DIRECCIÓN' (with accent). Accept the wide set as expected
+  // mapping rather than drift.
+  DIRECCION_CLINICA: new Set([
+    'DIRECCION', 'DIRECTOR', 'DIRECCION_GENERAL', 'DIRECCIÓN',
+    'GESTOR', 'MANAGER', 'CLINIC_ADMIN', 'CLINIC_DIRECTOR',
+    'EMPLEADO', 'EMPLOYEE', 'AUXILIAR', // some apps collapse all "non-admin" to lowest
+  ]),
+  // DIRECCION_GENERAL: same shape but at the company level.
+  DIRECCION_GENERAL: new Set([
+    'DIRECCION', 'DIRECTOR', 'DIRECCION_CLINICA', 'DIRECCIÓN',
+    'GESTOR', 'MANAGER', 'OWNER', 'ADMIN',
+  ]),
+  // RRHH: apps without a dedicated HR role tend to collapse to AUXILIAR or
+  // a generic "RECEPTION".
+  RRHH: new Set(['HR', 'AUXILIAR', 'RECEPTION', 'EMPLEADO', 'EMPLOYEE']),
+  // ODONTOLOGO: apps without dentist-specific role tend to put them in
+  // AUXILIAR / DENTIST.
+  ODONTOLOGO: new Set(['DENTIST', 'DOCTOR', 'AUXILIAR', 'EMPLEADO']),
 }
 
 function rolesMatch(hubRole: string, appRole: string): boolean {
@@ -394,7 +419,9 @@ async function auditApp(
     result.hub_clinics_expected.map((c) => [c.id, c]),
   )
   const returnedClinicById = new Map(
-    result.app_clinics_returned.map((c) => [c.id, c]),
+    // Match by canonical Hub external_id if the sub-app exposes one;
+    // otherwise fall back to the local id.
+    result.app_clinics_returned.map((c) => [clinicCanonicalId(c), c]),
   )
   for (const [id, c] of returnedClinicById) {
     if (!clinicIsActive(c)) continue // sub-app reports it as inactive — not orphan
