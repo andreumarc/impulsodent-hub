@@ -76,6 +76,16 @@ export interface AppClinicRow {
   id: string
   name: string
   active: boolean
+  // Some sub-apps return `isActive` instead of (or alongside) `active`.
+  // The audit normalizes via clinicIsActive() below.
+  isActive?: boolean
+}
+
+function clinicIsActive(c: AppClinicRow): boolean {
+  // Treat the row as active unless either field explicitly says false.
+  if (c.active === false) return false
+  if (c.isActive === false) return false
+  return true
 }
 
 export interface AppAuditResult {
@@ -387,7 +397,7 @@ async function auditApp(
     result.app_clinics_returned.map((c) => [c.id, c]),
   )
   for (const [id, c] of returnedClinicById) {
-    if (c.active === false) continue // sub-app reports it as inactive — not orphan
+    if (!clinicIsActive(c)) continue // sub-app reports it as inactive — not orphan
     if (!expectedClinicByExternalId.has(id)) {
       result.orphan_clinics.push(c)
     }
