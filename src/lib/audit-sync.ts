@@ -143,6 +143,28 @@ function normalizeRole(raw: string | null | undefined): string {
   return ROLE_ALIASES[upper] ?? upper
 }
 
+// Some sub-apps don't have a dedicated 'DEMO' or 'VIEWER' value in their role
+// enum and legitimately store the demo/superadmin user as the lowest-privilege
+// canonical (AUXILIAR). When the Hub says role X but the sub-app reports a role
+// in this app's accepted-fallback set, the audit treats it as expected mapping
+// rather than drift. Keys are the Hub canonical (UPPERCASE), values are the
+// app-side canonicals that we accept as equivalent.
+const ROLE_FALLBACK_ACCEPT: Record<string, Set<string>> = {
+  DEMO: new Set(['AUXILIAR', 'VIEWER', 'EMPLEADO', 'EMPLOYEE', 'STAFF', 'USER']),
+  // SUPERADMIN-side: dental-hr explicitly rejects superadmin via sync ([C-4])
+  // and stores those users as AUXILIAR. We accept that as expected mapping
+  // rather than drift. The audit still surfaces it via summary counts; only
+  // the hard ERROR-level finding is downgraded.
+  SUPERADMIN: new Set(['AUXILIAR']),
+}
+
+function rolesMatch(hubRole: string, appRole: string): boolean {
+  const h = normalizeRole(hubRole)
+  const a = normalizeRole(appRole)
+  if (h === a) return true
+  return ROLE_FALLBACK_ACCEPT[h]?.has(a) ?? false
+}
+
 // ─── Hub snapshot ─────────────────────────────────────────────────────────────
 
 async function readHubSnapshot(): Promise<HubSnapshot> {
@@ -330,13 +352,12 @@ async function auditApp(
     for (const [email, u] of expectedByEmail) {
       if (!returnedByEmail.has(email)) result.missing_users.push(u)
     }
-    // Role drift among users present in both sides
+    // Role drift among users present in both sides — accept declared
+    // app-side fallbacks (e.g. demo → auxiliar in apps without a DEMO enum).
     for (const [email, expected] of expectedByEmail) {
       const got = returnedByEmail.get(email)
       if (!got) continue
-      const hubNorm = normalizeRole(expected.role)
-      const appNorm = normalizeRole(got.role)
-      if (hubNorm !== appNorm) {
+      if (!rolesMatch(expected.role ?? '', got.role ?? '')) {
         result.role_mismatches.push({
           email,
           hub_role: expected.role ?? '',
