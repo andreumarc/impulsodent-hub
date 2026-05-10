@@ -42,6 +42,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   ddc:                process.env.NEXT_PUBLIC_URL_DDC ?? 'https://ddc.impulsodent.com',
   historiales:        process.env.NEXT_PUBLIC_URL_HISTORIALES ?? 'https://historiales.impulsodent.com',
   'casos-clinicos':   process.env.NEXT_PUBLIC_URL_CASOSCLINICOS ?? 'https://casos-clinicos.impulsodent.com',
+  helpdesk:           process.env.NEXT_PUBLIC_URL_HELPDESK ?? 'https://helpdesk.impulsodent.com',
 }
 
 /**
@@ -76,6 +77,7 @@ export const APP_IDS_WITH_CLINICS: ReadonlyArray<string> = [
   'clinicleads',
   'clinicnps',
   'sync-adapter',
+  'helpdesk',
 ]
 
 /**
@@ -104,6 +106,7 @@ export const APP_SSO_PATHS: Record<string, string> = {
   duediligence:        '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   historiales:         '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   'casos-clinicos':    '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  helpdesk:            '/api/auth/hub-sso',  // NextAuth v5 — credentials hub flow
 }
 
 /** Convenience helper: filter to entries that have a non-empty URL configured. */

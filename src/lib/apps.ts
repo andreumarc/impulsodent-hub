@@ -222,6 +222,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'helpdesk',
+    name: 'Helpdesk',
+    description: 'Helpdesk multi-categoría (mantenimiento, IT, RRHH, administración) con SLA, grupos de soporte, KB y reportes.',
+    icon: 'LifeBuoy',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_HELPDESK || 'https://helpdesk.impulsodent.com',
+    status: 'active',
+    category: 'Administración',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
