@@ -234,6 +234,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'pedistock',
+    name: 'Pedidos & Inventario',
+    description: 'Centralización de proveedores, pedidos, recepción de mercancía y control de stock con aprobación superior a 200 €.',
+    icon: 'Package',
+    color: '#00A99D',
+    bgColor: '#e0f7f6',
+    url: process.env.NEXT_PUBLIC_URL_PEDISTOCK || 'https://pedistock.impulsodent.com',
+    status: 'active',
+    category: 'Operaciones',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
