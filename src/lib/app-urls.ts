@@ -44,6 +44,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   'casos-clinicos':   process.env.NEXT_PUBLIC_URL_CASOSCLINICOS ?? 'https://casos-clinicos.impulsodent.com',
   helpdesk:           process.env.NEXT_PUBLIC_URL_HELPDESK ?? 'https://helpdesk.impulsodent.com',
   pedistock:          process.env.NEXT_PUBLIC_URL_PEDISTOCK ?? 'https://pedistock.impulsodent.com',
+  margincall:         process.env.NEXT_PUBLIC_URL_MARGINCALL ?? 'https://margincall.impulsodent.com',
 }
 
 /**
@@ -110,6 +111,7 @@ export const APP_SSO_PATHS: Record<string, string> = {
   'casos-clinicos':    '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   helpdesk:            '/api/auth/hub-sso',  // NextAuth v5 — credentials hub flow
   pedistock:           '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  margincall:          '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
 }
 
 /** Convenience helper: filter to entries that have a non-empty URL configured. */

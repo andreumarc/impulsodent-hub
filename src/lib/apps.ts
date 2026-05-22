@@ -246,6 +246,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'margincall',
+    name: 'MarginCall',
+    description: 'Calculadora de margen por tratamiento: especialidades, actos, honorarios y rentabilidad para clínicas dentales.',
+    icon: 'Calculator',
+    color: '#0D9488',
+    bgColor: '#ccfbf1',
+    url: process.env.NEXT_PUBLIC_URL_MARGINCALL || 'https://margincall.impulsodent.com',
+    status: 'active',
+    category: 'Financiero',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
