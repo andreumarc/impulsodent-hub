@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, Building2, Users, LayoutGrid, RefreshCw, Plug,
-  ChevronLeft, ChevronRight, ArrowLeft, Stethoscope, MessageCircle, UserCircle, CreditCard,
+  ChevronLeft, ChevronRight, ArrowLeft, Stethoscope, MessageCircle, UserCircle, CreditCard, X,
 } from 'lucide-react'
 import { BrandLogo } from '@/components/common/BrandLogo'
 
@@ -60,9 +60,30 @@ interface AdminSidebarProps {
   collapsed: boolean
   onToggle: () => void
   role?: string
+  /** Whether the mobile drawer is open (ignored at `lg+`). */
+  mobileOpen?: boolean
+  /** Closes the mobile drawer — called on navigation / backdrop / X. */
+  onMobileClose?: () => void
 }
 
-export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebarProps) {
+/** True when the viewport is at the `lg` breakpoint (1024px) or wider. */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(true)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const sync = () => setIsDesktop(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+  return isDesktop
+}
+
+export default function AdminSidebar({ collapsed: collapsedProp, onToggle, role, mobileOpen = false, onMobileClose }: AdminSidebarProps) {
+  const isDesktop = useIsDesktop()
+  // Collapsed (icon-only) mode is a desktop-only affordance — the mobile
+  // drawer always renders full width with labels.
+  const collapsed = collapsedProp && isDesktop
   const isSuperadmin = role === 'superadmin'
   const VISIBLE_GROUPS = NAV_GROUPS
     .map((g) => ({
@@ -83,7 +104,7 @@ export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebar
 
   return (
     <aside
-      className={`flex-shrink-0 flex flex-col h-full transition-all duration-200 ${collapsed ? 'w-16' : 'w-64'}`}
+      className={`flex flex-col h-screen flex-shrink-0 fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:h-full lg:translate-x-0 lg:transition-all ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'lg:w-16' : 'lg:w-64'}`}
       style={{ background: SIDEBAR_BG }}
     >
       {/* Logo */}
@@ -102,12 +123,25 @@ export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebar
             <BrandLogo variant="light" size="sm" subtitle="Panel Admin" />
           </div>
         )}
+        {/* Mobile close */}
+        <button
+          type="button"
+          onClick={onMobileClose}
+          aria-label="Cerrar menú"
+          className="ml-auto lg:hidden p-1.5 rounded-lg transition-colors"
+          style={{ color: INACTIVE_TEXT }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = HOVER_BG; e.currentTarget.style.color = '#fff' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = INACTIVE_TEXT }}
+        >
+          <X style={{ width: 18, height: 18 }} />
+        </button>
       </div>
 
       {/* Back to hub */}
       {!collapsed && (
         <Link
           href="/"
+          onClick={onMobileClose}
           className="flex items-center gap-2 mx-2 mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-all"
           style={{ color: INACTIVE_TEXT }}
           onMouseEnter={(e) => { e.currentTarget.style.background = HOVER_BG; e.currentTarget.style.color = '#fff' }}
@@ -138,6 +172,7 @@ export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebar
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={onMobileClose}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150"
                       style={{
                         background: active ? ACTIVE_BG : hovered ? HOVER_BG : 'transparent',
@@ -165,6 +200,7 @@ export default function AdminSidebar({ collapsed, onToggle, role }: AdminSidebar
       <div style={{ borderTop: `1px solid ${BORDER_COLOR}` }}>
         <Link
           href="/admin/profile"
+          onClick={onMobileClose}
           className="flex items-center gap-3 mx-2 my-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150"
           style={{
             color: INACTIVE_TEXT,
