@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LogOut, ShieldCheck } from 'lucide-react'
 import { BrandLogo } from '@/components/common/BrandLogo'
 import NotificationBell from '@/components/layout/NotificationBell'
+import { ThemeSwitcher } from '@/components/theme-switcher'
 import type { SessionUser } from '@/lib/auth'
 
 interface TopbarProps {
@@ -46,6 +47,9 @@ export default function Topbar({ user }: TopbarProps) {
           Admin
         </Link>
       )}
+
+      {/* Theme switcher */}
+      <ThemeSwitcher />
 
       {/* Notifications bell */}
       <NotificationBell />

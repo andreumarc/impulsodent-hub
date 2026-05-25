@@ -26,10 +26,69 @@
     --radius: 0.5rem;
   }
 
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 96%;
+    --primary: 175 100% 40%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 222 47% 14%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 222 47% 14%;
+    --muted-foreground: 215 16% 60%;
+    --accent: 175 100% 40%;
+    --accent-foreground: 222 47% 6%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 210 40% 96%;
+    --border: 222 47% 16%;
+    --input: 222 47% 16%;
+    --ring: 175 100% 40%;
+  }
+
   * { @apply border-border; }
   body { @apply bg-background text-foreground font-sans antialiased; }
   h1, h2, h3, h4, h5, h6 { @apply font-semibold tracking-tight; }
 }
+
+/* Dark mode: generic overrides for utility classes baked into many components.
+ * Allows existing light components to switch to dark without touching each file. */
+html.dark,
+html.dark body {
+  background: hsl(222 47% 6%);
+  color: hsl(210 40% 96%);
+}
+
+.dark .bg-white { background-color: hsl(222 47% 9%) !important; }
+.dark .border-gray-100,
+.dark .border-gray-200 { border-color: hsl(222 47% 16%) !important; }
+.dark .text-gray-900 { color: hsl(210 40% 96%) !important; }
+.dark .text-gray-700 { color: hsl(210 40% 80%) !important; }
+.dark .text-gray-600 { color: hsl(210 40% 72%) !important; }
+.dark .text-gray-500 { color: hsl(215 16% 60%) !important; }
+.dark .text-gray-400 { color: hsl(215 16% 50%) !important; }
+.dark .bg-gray-50,
+.dark .bg-gray-50\/60,
+.dark .bg-gray-100 { background-color: hsl(222 47% 12%) !important; }
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover { background-color: hsl(222 47% 14%) !important; }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(222 47% 16%) !important; }
+
+/* Recharts theming under dark mode */
+.dark .recharts-cartesian-axis-tick text,
+.dark .recharts-polar-angle-axis-tick text,
+.dark .recharts-polar-radius-axis-tick text { fill: hsl(210 40% 70%) !important; }
+.dark .recharts-cartesian-grid line,
+.dark .recharts-polar-grid line { stroke: hsl(222 47% 20%) !important; }
+.dark .recharts-default-tooltip {
+  background: hsl(222 47% 9%) !important;
+  border-color: hsl(222 47% 16%) !important;
+  color: hsl(210 40% 96%) !important;
+}
+.dark .recharts-tooltip-label,
+.dark .recharts-tooltip-item { color: hsl(210 40% 96%) !important; }
+.dark .recharts-legend-item-text { color: hsl(210 40% 80%) !important; }
 
 @layer components {
   .sidebar-scroll {
