@@ -1,7 +1,7 @@
 import {
   Activity, Phone, Stethoscope, UserCheck, Clock, Receipt,
   LayoutGrid, Building2, BarChart3, MessageSquare, RefreshCcw, RefreshCw, Plug, Target,
-  Star, UserPlus, Grid3x3, Package, ScanSearch, ClipboardCheck,
+  Star, UserPlus, Grid3x3, Package, ScanSearch, ClipboardCheck, Radar,
   ArrowUpRight, Lock,
 } from 'lucide-react'
 import type { AppDef } from '@/lib/apps'
@@ -27,6 +27,7 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
   Package,
   ScanSearch,
   ClipboardCheck,
+  Radar,
 }
 
 interface AppCardProps {

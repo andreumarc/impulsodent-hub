@@ -258,6 +258,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'competidor',
+    name: 'Competidor Radar',
+    description: 'Analiza competencia dental por zona, precios, reputación y posicionamiento.',
+    icon: 'Radar',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_COMPETIDOR || 'https://competidor.impulsodent.com',
+    status: 'active',
+    category: 'Estratégico',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
