@@ -14,38 +14,44 @@
  * `api/admin/clinics`) automatically pick it up.
  */
 
+// Empty Vercel env values get loaded as `""` (not undefined), and `"" ?? fallback`
+// returns `""` — so without this coercion, every sub-app with an empty env var
+// silently bypasses its hardcoded fallback URL and ends up filtered out of the
+// reconcile sweep entirely. Treat empty strings as missing.
+const e = (v: string | undefined): string | undefined => (v && v.length > 0 ? v : undefined)
+
 export const APP_URLS: Record<string, string | undefined> = {
-  clinicpnl:          process.env.NEXT_PUBLIC_URL_CLINICPNL,
-  clinicvox:          process.env.NEXT_PUBLIC_URL_CLINICVOX,
+  clinicpnl:          e(process.env.NEXT_PUBLIC_URL_CLINICPNL)     ?? 'https://clinicpnl.impulsodent.com',
+  clinicvox:          e(process.env.NEXT_PUBLIC_URL_CLINICVOX)     ?? 'https://clinicvox.impulsodent.com',
   // dentalspot removed from Hub catalog (2026-04-26)
-  spendflow:          process.env.NEXT_PUBLIC_URL_SPENDFLOW,
-  fichaje:            process.env.NEXT_PUBLIC_URL_FICHAJE,
-  zentrix:            process.env.NEXT_PUBLIC_URL_ZENTRIX,
-  dentalhr:           process.env.NEXT_PUBLIC_URL_DENTALHR,
-  dentalreports:      process.env.NEXT_PUBLIC_URL_DENTALREPORTS,
-  clinicrefunds:      process.env.NEXT_PUBLIC_URL_CLINICREFUNDS,
-  nexora:             process.env.NEXT_PUBLIC_URL_NEXORA,
-  clinicstock:        process.env.NEXT_PUBLIC_URL_CLINICSTOCK,
+  spendflow:          e(process.env.NEXT_PUBLIC_URL_SPENDFLOW)     ?? 'https://spendflow.impulsodent.com',
+  fichaje:            e(process.env.NEXT_PUBLIC_URL_FICHAJE)       ?? 'https://fichajeshr.impulsodent.com',
+  zentrix:            e(process.env.NEXT_PUBLIC_URL_ZENTRIX)       ?? 'https://zentrix.impulsodent.com',
+  dentalhr:           e(process.env.NEXT_PUBLIC_URL_DENTALHR)      ?? 'https://dentalhr.impulsodent.com',
+  dentalreports:      e(process.env.NEXT_PUBLIC_URL_DENTALREPORTS) ?? 'https://dentalreports.impulsodent.com',
+  clinicrefunds:      e(process.env.NEXT_PUBLIC_URL_CLINICREFUNDS) ?? 'https://clinicrefunds.impulsodent.com',
+  nexora:             e(process.env.NEXT_PUBLIC_URL_NEXORA)        ?? 'https://nexora.impulsodent.com',
+  clinicstock:        e(process.env.NEXT_PUBLIC_URL_CLINICSTOCK)   ?? 'https://clinicstock.impulsodent.com',
   // clinicflow excluded from Hub user-sync (manual auth, no SSO)
   // dentalspot excluded (removed from Hub catalog 2026-04-26)
   // nexuserp excluded (separate project, not in Hub)
-  'impulsodent-crm':  process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
+  'impulsodent-crm':  e(process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM) ?? 'https://crm.impulsodent.com',
   // Alias keys to match catalog ids (lib/apps.ts uses 'talent' & 'crm')
   // NEXT_PUBLIC_URL_TALENT is the primary var; NEXT_PUBLIC_URL_IMPULSODENT_TALENT is the legacy alias
-  talent:             process.env.NEXT_PUBLIC_URL_TALENT ?? process.env.NEXT_PUBLIC_URL_IMPULSODENT_TALENT,
-  'impulsodent-talent': process.env.NEXT_PUBLIC_URL_TALENT ?? process.env.NEXT_PUBLIC_URL_IMPULSODENT_TALENT,
-  crm:                process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM,
-  clinicnps:          process.env.NEXT_PUBLIC_URL_CLINICNPS,
-  clinicleads:        process.env.NEXT_PUBLIC_URL_CLINICLEADS,
-  'sync-adapter':     process.env.NEXT_PUBLIC_URL_SYNC_ADAPTER,
-  duediligence:       process.env.NEXT_PUBLIC_URL_DUEDILIGENCE ?? 'https://due.impulsodent.com',
-  ddc:                process.env.NEXT_PUBLIC_URL_DDC ?? 'https://ddc.impulsodent.com',
-  historiales:        process.env.NEXT_PUBLIC_URL_HISTORIALES ?? 'https://historiales.impulsodent.com',
-  'casos-clinicos':   process.env.NEXT_PUBLIC_URL_CASOSCLINICOS ?? 'https://casos-clinicos.impulsodent.com',
-  helpdesk:           process.env.NEXT_PUBLIC_URL_HELPDESK ?? 'https://helpdesk.impulsodent.com',
-  pedistock:          process.env.NEXT_PUBLIC_URL_PEDISTOCK ?? 'https://pedistock.impulsodent.com',
-  margincall:         process.env.NEXT_PUBLIC_URL_MARGINCALL ?? 'https://margincall.impulsodent.com',
-  competidor:         process.env.NEXT_PUBLIC_URL_COMPETIDOR ?? 'https://competidor.impulsodent.com',
+  talent:             e(process.env.NEXT_PUBLIC_URL_TALENT) ?? e(process.env.NEXT_PUBLIC_URL_IMPULSODENT_TALENT) ?? 'https://talent.impulsodent.com',
+  'impulsodent-talent': e(process.env.NEXT_PUBLIC_URL_TALENT) ?? e(process.env.NEXT_PUBLIC_URL_IMPULSODENT_TALENT) ?? 'https://talent.impulsodent.com',
+  crm:                e(process.env.NEXT_PUBLIC_URL_IMPULSODENT_CRM) ?? 'https://crm.impulsodent.com',
+  clinicnps:          e(process.env.NEXT_PUBLIC_URL_CLINICNPS)    ?? 'https://clinicnps.impulsodent.com',
+  clinicleads:        e(process.env.NEXT_PUBLIC_URL_CLINICLEADS)  ?? 'https://clinicleads.impulsodent.com',
+  'sync-adapter':     e(process.env.NEXT_PUBLIC_URL_SYNC_ADAPTER) ?? 'https://syncadapter.impulsodent.com',
+  duediligence:       e(process.env.NEXT_PUBLIC_URL_DUEDILIGENCE) ?? 'https://due.impulsodent.com',
+  ddc:                e(process.env.NEXT_PUBLIC_URL_DDC)          ?? 'https://ddc.impulsodent.com',
+  historiales:        e(process.env.NEXT_PUBLIC_URL_HISTORIALES)  ?? 'https://historiales.impulsodent.com',
+  'casos-clinicos':   e(process.env.NEXT_PUBLIC_URL_CASOSCLINICOS) ?? 'https://casos-clinicos.impulsodent.com',
+  helpdesk:           e(process.env.NEXT_PUBLIC_URL_HELPDESK)     ?? 'https://helpdesk.impulsodent.com',
+  pedistock:          e(process.env.NEXT_PUBLIC_URL_PEDISTOCK)    ?? 'https://pedistock.impulsodent.com',
+  margincall:         e(process.env.NEXT_PUBLIC_URL_MARGINCALL)   ?? 'https://margincall.impulsodent.com',
+  competidor:         e(process.env.NEXT_PUBLIC_URL_COMPETIDOR)   ?? 'https://competidor.impulsodent.com',
 }
 
 /**
