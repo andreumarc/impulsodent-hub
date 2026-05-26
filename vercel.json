@@ -7,6 +7,18 @@
     {
       "path": "/api/cron/resync-users",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-clinics",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-users",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-companies",
+      "schedule": "0 5 * * *"
     }
   ],
   "headers": [
