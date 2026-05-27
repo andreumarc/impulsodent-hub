@@ -270,6 +270,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'leadsreport',
+    name: 'LeadsReport',
+    description: 'Captura mensual de leads por clínica, comparativa entre centros, evolución histórica y export PDF ejecutivo.',
+    icon: 'TrendingUp',
+    color: '#0d9488',
+    bgColor: '#ccfbf1',
+    url: process.env.NEXT_PUBLIC_URL_LEADSREPORT || 'https://leadsreports.impulsodent.com',
+    status: 'active',
+    category: 'CRM',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',

@@ -52,6 +52,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   pedistock:          e(process.env.NEXT_PUBLIC_URL_PEDISTOCK)    ?? 'https://pedistock.impulsodent.com',
   margincall:         e(process.env.NEXT_PUBLIC_URL_MARGINCALL)   ?? 'https://margincall.impulsodent.com',
   competidor:         e(process.env.NEXT_PUBLIC_URL_COMPETIDOR)   ?? 'https://competidor.impulsodent.com',
+  leadsreport:        e(process.env.NEXT_PUBLIC_URL_LEADSREPORT)  ?? 'https://leadsreports.impulsodent.com',
 }
 
 /**
@@ -89,6 +90,7 @@ export const APP_IDS_WITH_CLINICS: ReadonlyArray<string> = [
   'helpdesk',
   'pedistock',
   'competidor',
+  'leadsreport',
 ]
 
 /**
@@ -121,6 +123,7 @@ export const APP_SSO_PATHS: Record<string, string> = {
   pedistock:           '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   margincall:          '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   competidor:          '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  leadsreport:         '/sso',               // NextAuth v5 — page-level /sso route (hub-sso provider)
 }
 
 /** Convenience helper: filter to entries that have a non-empty URL configured. */
