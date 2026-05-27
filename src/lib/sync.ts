@@ -115,15 +115,35 @@ export async function pushUserToApps(user: {
     return
   }
 
-  // Look up company slug for cross-app tenant filtering
+  // Look up company for cross-app tenant filtering
   let companySlug: string | null = null
+  let companyName: string | null = null
+  let companyActive = true
   if (user.companyId) {
     try {
       const company = await prisma.company.findUnique({
         where: { id: user.companyId },
-        select: { slug: true },
+        select: { slug: true, name: true, active: true },
       })
       companySlug = company?.slug ?? null
+      companyName = company?.name ?? null
+      companyActive = company?.active !== false
+    } catch { /* non-fatal */ }
+  }
+
+  // Pre-fetch Hub clinic records for this company, grouped by app_id.
+  // Used to fan-out clinic creates to sub-apps before the user membership sync.
+  const clinicsByApp = new Map<string, Array<{ external_id: string; name: string; active: boolean }>>()
+  if (user.companyId) {
+    try {
+      const companyClinics = await prisma.clinic.findMany({
+        where: { company_id: user.companyId, active: true },
+        select: { app_id: true, external_id: true, name: true, active: true },
+      })
+      for (const c of companyClinics) {
+        if (!clinicsByApp.has(c.app_id)) clinicsByApp.set(c.app_id, [])
+        clinicsByApp.get(c.app_id)!.push({ external_id: c.external_id, name: c.name, active: c.active })
+      }
     } catch { /* non-fatal */ }
   }
 
@@ -159,9 +179,51 @@ export async function pushUserToApps(user: {
     appEntries.map(async ([appId, appUrl]) => {
         // Use app-specific role if set, otherwise fall back to hub role
         const appRole = appRoles.find((r) => r.app_id === appId)?.role ?? user.role
+
+        // Skip push entirely when the user has no access to this app:
+        // - launch endpoint already returns no_app_access with a redirect
+        // - some sub-apps (e.g. clinicnps) validate role with z.string().min(1)
+        //   and respond 500 instead of 401/403 when role is "" — this avoids
+        //   silently propagating empty roles to strict sub-apps.
+        if (!appRole || appRole.trim() === '') {
+          console.log('[sync] skip — empty role', { app_id: appId, email: user.email })
+          return
+        }
         // SUPERADMIN always gets full access to ALL clinics in every app
         const isSuperadmin = user.role === 'superadmin' || appRole === 'superadmin'
         const clinicIds: string[] | 'ALL' = isSuperadmin ? 'ALL' : (clinicIdsByApp[appId] ?? 'ALL')
+
+        // Ensure company exists in this sub-app before creating user membership.
+        // This is a best-effort pre-sync: if the company or its clinics were never
+        // pushed to this app (e.g. created directly in sub-app), the user sync would
+        // silently skip the membership block. Doing it here fixes the ordering issue.
+        if (companySlug && companyName) {
+          try {
+            await fetch(`${appUrl}/api/sync/company`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+              body: JSON.stringify({ slug: companySlug, name: companyName, active: companyActive }),
+              signal: AbortSignal.timeout(6000),
+            })
+          } catch { /* non-fatal — company may already exist */ }
+
+          // Push clinic records for this specific app so that clinic_ids='ALL' resolves
+          // to actual clinics rather than an empty set.
+          const appClinics = clinicsByApp.get(appId) ?? []
+          if (appClinics.length > 0) {
+            try {
+              await fetch(`${appUrl}/api/sync/clinics`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+                body: JSON.stringify({
+                  company_slug: companySlug,
+                  clinics: appClinics.map((c) => ({ id: c.external_id, name: c.name, active: c.active })),
+                }),
+                signal: AbortSignal.timeout(6000),
+              })
+            } catch { /* non-fatal */ }
+          }
+        }
 
         // All sub-apps (including fichaje, now Next.js on Vercel) use /api/sync/user.
         const syncPath = '/api/sync/user'
@@ -173,6 +235,7 @@ export async function pushUserToApps(user: {
           name:         user.name,
           role:         appRole,
           company_slug: companySlug,
+          company_name: companyName,
           clinic_ids:   clinicIds,
           // Companion list of clinic names — sub-apps fall back to this when
           // their local clinic.code (= one app's external_id) doesn't match
