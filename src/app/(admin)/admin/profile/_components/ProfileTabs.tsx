@@ -76,6 +76,7 @@ const APP_ID_LABELS: Record<string, string> = {
   clinicrefunds: 'ClinicRefunds',
   dentalreports: 'DentalReports',
   nexora: 'Nexora',
+  workforce: 'Workforce Calendar',
   integrations: 'Integraciones',
 }
 
@@ -96,6 +97,7 @@ const IMPULSODENT_APPS = [
   { id: 'clinicnps',       name: 'ImpulsoNPS',         desc: 'Encuestas NPS por WhatsApp y email',                 color: '#003A70', bg: '#e6eef7' },
   { id: 'clinicleads',     name: 'ClinicLeads',        desc: 'Captación y gestión de leads para clínicas',         color: '#0D9488', bg: '#ccfbf1' },
   { id: 'clinicflow',      name: 'ClinicFlow OS',      desc: 'Protocolos clínicos por fases con checklists',       color: '#003A70', bg: '#e6eef7' },
+  { id: 'workforce',       name: 'Workforce Calendar', desc: 'Calendario laboral anual: turnos, cobertura y conflictos', color: '#003A70', bg: '#e6eef7' },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
