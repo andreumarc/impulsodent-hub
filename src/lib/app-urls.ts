@@ -56,6 +56,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   'dental-price':     e(process.env.NEXT_PUBLIC_URL_DENTAL_PRICE) ?? 'https://dental-price-intelligence.vercel.app',
   leadops:            e(process.env.NEXT_PUBLIC_URL_LEADOPS)      ?? 'https://dentalleads.impulsodent.com',
   workforce:          e(process.env.NEXT_PUBLIC_URL_WORKFORCE)    ?? 'https://workforce.impulsodent.com',
+  liquidaciones:      e(process.env.NEXT_PUBLIC_URL_LIQUIDACIONES) ?? 'https://liquidaciones.impulsodent.com',
 }
 
 /**
@@ -97,6 +98,7 @@ export const APP_IDS_WITH_CLINICS: ReadonlyArray<string> = [
   'dental-price',
   'leadops',
   'workforce',
+  'liquidaciones',
 ]
 
 /**
@@ -133,6 +135,7 @@ export const APP_SSO_PATHS: Record<string, string> = {
   'dental-price':      '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   leadops:             '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   workforce:           '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  liquidaciones:       '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
 }
 
 /** Convenience helper: filter to entries that have a non-empty URL configured. */

@@ -318,6 +318,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'liquidaciones',
+    name: 'Liquidaciones',
+    description: 'Cálculo, revisión y aprobación de liquidaciones mensuales a odontólogos: 7 modelos económicos, laboratorio, objetivos e incentivos, workflow de aprobación y export PDF.',
+    icon: 'Wallet',
+    color: '#003A70',
+    bgColor: '#e6eef7',
+    url: process.env.NEXT_PUBLIC_URL_LIQUIDACIONES || 'https://liquidaciones.impulsodent.com',
+    status: 'active',
+    category: 'Financiero',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
