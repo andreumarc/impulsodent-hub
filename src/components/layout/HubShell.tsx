@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import Topbar from './Topbar'
+import Topbar from './topbar'
 import type { SessionUser } from '@/lib/auth'
 
 const UserContext = createContext<SessionUser | null>(null)
