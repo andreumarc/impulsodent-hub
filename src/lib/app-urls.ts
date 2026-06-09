@@ -57,6 +57,7 @@ export const APP_URLS: Record<string, string | undefined> = {
   leadops:            e(process.env.NEXT_PUBLIC_URL_LEADOPS)      ?? 'https://dentalleads.impulsodent.com',
   workforce:          e(process.env.NEXT_PUBLIC_URL_WORKFORCE)    ?? 'https://workforce.impulsodent.com',
   liquidaciones:      e(process.env.NEXT_PUBLIC_URL_LIQUIDACIONES) ?? 'https://liquidaciones.impulsodent.com',
+  labcontrol:         e(process.env.NEXT_PUBLIC_URL_LABCONTROL)    ?? 'https://labcontrol.impulsodent.com',
 }
 
 /**
@@ -99,6 +100,7 @@ export const APP_IDS_WITH_CLINICS: ReadonlyArray<string> = [
   'leadops',
   'workforce',
   'liquidaciones',
+  'labcontrol',
 ]
 
 /**
@@ -136,6 +138,7 @@ export const APP_SSO_PATHS: Record<string, string> = {
   leadops:             '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   workforce:           '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
   liquidaciones:       '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
+  labcontrol:          '/api/sso',           // NextAuth v5 — outside [...nextauth] catch-all
 }
 
 /** Convenience helper: filter to entries that have a non-empty URL configured. */

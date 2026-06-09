@@ -330,6 +330,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'labcontrol',
+    name: 'LabControl',
+    description: 'Control de trabajos de laboratorio dental: seguimiento fase a fase (enviado, recibido, siguiente fase), alertas de retrasos, KPIs por laboratorio y configuración de tipos y fases por clínica.',
+    icon: 'FlaskConical',
+    color: '#0d9488',
+    bgColor: '#ccfbf1',
+    url: process.env.NEXT_PUBLIC_URL_LABCONTROL || 'https://labcontrol.impulsodent.com',
+    status: 'active',
+    category: 'Clínica',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
