@@ -342,6 +342,18 @@ export const APPS: AppDef[] = [
     badge: 'Nuevo',
   },
   {
+    id: 'recovery',
+    name: 'Revenue Recovery',
+    description: 'Detecta dinero perdido a partir de datos de GesdenOne: presupuestos sin seguimiento, huecos de agenda, no-shows, producción no cobrada, saldos y recall, con alertas, tareas, plantillas de WhatsApp e informes PDF.',
+    icon: 'PiggyBank',
+    color: '#0d9488',
+    bgColor: '#ccfbf1',
+    url: process.env.NEXT_PUBLIC_URL_RECOVERY || 'https://recovery.impulsodent.com',
+    status: 'active',
+    category: 'Financiero',
+    badge: 'Nuevo',
+  },
+  {
     id: 'sync-adapter',
     name: 'Sync Adapter',
     description: 'Capa master de datos clínicos: sincronización Gesden→Cloud para pacientes y citas. Solo admins.',
